@@ -26,38 +26,49 @@
       margin-bottom: 5px;
     }
 
+    #currentInfo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 5px;
+      width: 100%;
+    }
+
     #currentInfo p {
       font-size: 16px;
       margin: 10px 0;
       color: #34495e;
       font-weight: 500;
+      text-align: center;
     }
 
     #ipAddress {
       font-size: 16px;
       font-weight: 500;
       color: #34495e;
+      text-align: center;
+      width: 100%;
     }
 
-    .specialIp,
-    .unknownConnection {
+    .specialIp, .unknownConnection {
       border: 2px solid;
       border-radius: 12px;
       padding: 5px 10px;
+      display: inline-block;
+      text-align: center;
     }
 
     .specialIp {
       border-color: #2ecc71;
-      font-size: 16px;
-      font-weight: bold;
       color: #2ecc71;
+      font-weight: bold;
     }
 
     .unknownConnection {
       border-color: red;
-      font-size: 16px;
-      font-weight: bold;
       color: red;
+      font-weight: bold;
       animation: blink 2s infinite;
     }
 
@@ -87,67 +98,17 @@
       position: relative;
       z-index: 2;
       font-size: 18px;
-      color: white;
       font-weight: bold;
+      color: white;
     }
 
     #resultText {
+      display: none;
       position: relative;
       z-index: 3;
       font-size: 18px;
       font-weight: bold;
-      color: white;
-      display: none;
-      max-width: 90%;
       text-align: center;
-      word-wrap: break-word;
-    }
-
-    button {
-      font-size: 20px;
-      padding: 15px 30px;
-      margin: 5px 0;
-      border: none;
-      border-radius: 30px;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.3s, background-color 0.3s;
-      width: auto;
-      background: linear-gradient(145deg, #f44336, #ff5733);
-      color: white;
-      font-weight: bold;
-      text-transform: uppercase;
-      box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.2);
-    }
-
-    button:hover {
-      transform: translateY(-4px);
-      box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.3);
-      background: linear-gradient(145deg, #ff5733, #f44336);
-    }
-
-    .punchButtonSuccess {
-      background: linear-gradient(145deg, #4CAF50, #2ecc71) !important;
-      color: white !important;
-    }
-
-    .disabled {
-      background: #e0e0e0;
-      color: #aaa;
-      cursor: not-allowed;
-    }
-
-    #currentInfo {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      margin-top: 5px;
-    }
-
-    #successMessage {
-      font-size: 20px;
-      margin-top: 5px;
-      font-weight: 600;
     }
 
     @keyframes blink {
@@ -156,172 +117,17 @@
       100% { opacity: 1; }
     }
 
-    #locationErrorText {
-      display: none;
-      font-size: 16px;
-      color: #1f3a68;
-      font-weight: bold;
-      text-align: center;
-      white-space: nowrap;
+    @keyframes pulseFade {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.05); }
+      100% { opacity: 1; transform: scale(1); }
     }
 
-    .swal2-popup .swal2-html-container {
-      line-height: 0.8;
-    }
-
-    @media (max-width: 480px) {
-      h3 {
-        font-size: 20px;
-        text-align: center;
-      }
-
-      #currentInfo p {
-        font-size: 14px;
-        text-align: center;
-      }
-
-      button {
-        font-size: 16px;
-        padding: 12px 24px;
-        width: 90%;
-      }
-
-      #countdownWrapper {
-        height: 32px;
-        margin-top: 10px;
-      }
-
-      #countdownText,
-      #resultText {
-        font-size: 16px;
-        text-align: center;
-      }
-
-      #locationErrorText {
-        font-size: 14px;
-        margin-top: 10px;
-      }
+    .pulsingText {
+      color: #3498db !important;
+      animation: pulseFade 1.5s infinite;
     }
   </style>
-
-  <script>
-    const COMPANY_IPS = [
-      "114.34.60.48", "220.132.124.179", "125.228.248.110",
-      "114.34.128.159", "220.134.230.241"
-    ];
-    const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbxc461fZqsnRpOoeIUrnB1iTsxlWme-De75fDytflb6pEgKxCmffAXVUG2DPfI8EvIMXA/exec";
-    let userIpCache = null;
-
-    async function getUserIP() {
-      if (userIpCache) return userIpCache;
-      try {
-        const response = await fetch("https://api.ipify.org?format=json");
-        const data = await response.json();
-        userIpCache = data.ip;
-        return userIpCache;
-      } catch (err) {
-        console.error("IP 取得失敗", err);
-        return null;
-      }
-    }
-
-    function displayDateTime() {
-      const currentDate = new Date();
-      const dateString = currentDate.toLocaleDateString("zh-TW");
-      const timeString = currentDate.toLocaleTimeString("zh-TW");
-      document.getElementById("currentDate").textContent =
-        "現在時刻: " + dateString + " " + timeString;
-    }
-
-    async function startClockIn() {
-      const countdownDuration = 4;
-      let remainingTime = countdownDuration;
-      const countdownBar = document.getElementById("countdownBar");
-      const countdownText = document.getElementById("countdownText");
-      const resultText = document.getElementById("resultText");
-
-      countdownBar.style.width = "100%";
-      countdownText.textContent = "打卡中，請稍候...";
-      resultText.style.display = "none";
-
-      const interval = setInterval(() => {
-        remainingTime--;
-        countdownBar.style.width = (remainingTime / countdownDuration) * 100 + "%";
-        if (remainingTime <= 0) clearInterval(interval);
-      }, 1000);
-
-      const ip = await getUserIP();
-
-      // 顯示 IP 狀態
-      if (COMPANY_IPS.includes(ip)) {
-        document.getElementById("ipAddress").innerHTML =
-          '<span class="specialIp">已連接公司網路</span>';
-      } else {
-        document.getElementById("ipAddress").innerHTML =
-          '<span class="unknownConnection">不明連線</span>';
-      }
-
-      try {
-        const res = await fetch(API_ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({ ip: ip }),
-        });
-
-        const response = await res.json();
-        const now = new Date().toLocaleTimeString("zh-TW");
-
-        countdownBar.style.display = "none";
-        countdownText.style.display = "none";
-        resultText.style.display = "block";
-
-        if (response.message.includes("成功") && COMPANY_IPS.includes(ip)) {
-          Swal.fire({
-            icon: "success",
-            title: "🎉 打卡成功！",
-            html: `<strong>打卡時間：</strong> ${now}`,
-            showConfirmButton: false,
-            timer: 4000,
-            backdrop: `rgba(0,0,0,0.5) url("https://i.imgur.com/3pEHqKf.gif") center center / cover no-repeat`,
-          });
-          resultText.textContent = "😀 打卡成功!";
-          resultText.style.color = "#4CAF50";
-        } else if (response.message.includes("成功")) {
-          Swal.fire({
-            icon: "warning",
-            title: `<span style="font-size: 20px; color: #e67e22;">⚠連線錯誤，切換網路再試</span>`,
-            html: `<div style="font-size: 16px; color: #3498db;font-weight: bold; margin-top: 8px;">◎ 異地打卡請忽略 ◎</div>`,
-            showConfirmButton: false,
-            backdrop: `rgba(0,0,0,0.5) url("https://i.imgur.com/yhvwIFG.gif") center center / cover no-repeat`,
-          });
-          resultText.textContent = "⚠ 連線錯誤，切換網路再試";
-          resultText.style.color = "#e67e22";
-        } else {
-          Swal.fire({
-            icon: "error",
-            title: "😥 打卡失敗",
-            html: "操作錯誤，請重新操作",
-            showConfirmButton: false,
-            backdrop: `rgba(0,0,0,0.5) url("https://i.imgur.com/oYiTqum.gif") center center / cover no-repeat`,
-          });
-          resultText.textContent = "😥 連線閒置，請重新操作。";
-          resultText.style.color = "red";
-        }
-      } catch (error) {
-        Swal.fire({
-          icon: "error",
-          title: "😥 發生錯誤",
-          html: "請通知人事部門！",
-          showConfirmButton: false,
-        });
-        console.error("打卡錯誤：", error);
-      }
-    }
-
-    window.onload = () => {
-      displayDateTime();
-      startClockIn();
-    };
-  </script>
 </head>
 <body>
   <h3>謝謝使用奇可智能打卡系統</h3>
@@ -329,11 +135,118 @@
     <p id="ipAddress">正在獲取 IP 地址...</p>
     <p id="currentDate">正在獲取現在時刻...</p>
   </div>
-  <br />
   <div id="countdownWrapper">
     <div id="countdownBar"></div>
     <div id="countdownText">打卡中，請稍候...</div>
     <div id="resultText"></div>
   </div>
+
+  <script>
+    const COMPANY_IPS = ["118.231.136.15"];
+    const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbwzdxIwUI-UNgBc4N4wxjw546w0L84zBemKOfgD0JJlja6Zs_5PXH8LN5baktamX-xo8g/exec";
+
+    async function getUserIP() {
+      const res = await fetch("https://api.ipify.org?format=json");
+      const data = await res.json();
+      return data.ip;
+    }
+
+    async function displayCurrentInfo() {
+      const date = new Date();
+      document.getElementById("currentDate").textContent = "現在時刻: " + date.toLocaleString("zh-TW");
+
+      try {
+        const ip = await getUserIP();
+        if (COMPANY_IPS.includes(ip)) {
+          document.getElementById("ipAddress").innerHTML = '<span class="specialIp">已連接公司網路</span>';
+        } else {
+          document.getElementById("ipAddress").innerHTML = '<span class="unknownConnection">不明連線</span>';
+        }
+        return ip;
+      } catch (err) {
+        document.getElementById("ipAddress").textContent = "無法獲取 IP 地址";
+        return null;
+      }
+    }
+
+    async function performClockIn(ip) {
+      const res = await fetch(API_ENDPOINT, {
+        method: "POST",
+        body: JSON.stringify({ ip }),
+      });
+      return await res.text();
+    }
+
+    window.onload = async () => {
+      const ip = await displayCurrentInfo();
+      if (!ip) return;
+
+      const bar = document.getElementById("countdownBar");
+      const text = document.getElementById("countdownText");
+      const resultEl = document.getElementById("resultText");
+
+      // 倒數時間控制
+      let duration = 3;
+      let width = 100;
+      const countdown = setInterval(() => {
+        width -= 100 / duration;
+        bar.style.width = width + "%";
+      }, 1000);
+
+      const clockInPromise = performClockIn(ip);
+
+      // 倒數結束時開始動畫等待
+      setTimeout(() => {
+        clearInterval(countdown);
+        bar.style.display = "none";
+        text.classList.add("pulsingText");
+      }, duration * 1000);
+
+      // 等待伺服器回應
+      clockInPromise.then(responseText => {
+        text.classList.remove("pulsingText");
+        text.style.display = "none";
+        resultEl.style.display = "block";
+
+        const nowTime = new Date().toLocaleTimeString("zh-TW");
+        const isCompanyIP = COMPANY_IPS.includes(ip);
+
+        if (responseText.includes("成功") && isCompanyIP) {
+          resultEl.textContent = "😀 打卡成功!";
+          resultEl.style.color = "#4CAF50";
+          Swal.fire({
+            icon: 'success',
+            title: '🎉 打卡成功！',
+            html: `<strong>打卡時間：</strong> ${nowTime}`,
+            showConfirmButton: false,
+            allowOutsideClick: true
+          });
+        } else if (responseText.includes("成功")) {
+          resultEl.textContent = "⚠ 連線錯誤，切換網路再試";
+          resultEl.style.color = "#e67e22";
+          Swal.fire({
+            icon: 'warning',
+            title: '⚠ 非公司網路',
+            html: `<div>◎ 異地打卡請忽略 ◎</div>`,
+            showConfirmButton: false,
+            allowOutsideClick: true
+          });
+        } else {
+          resultEl.textContent = "😥 關閉視窗，重新打卡。";
+          resultEl.style.color = "red";
+          Swal.fire({
+            icon: 'error',
+            title: '😥 操作錯誤',
+            html: '未簽到或重複簽到',
+            showConfirmButton: false,
+            allowOutsideClick: true
+          });
+        }
+      });
+    };
+  </script>
 </body>
 </html>
+
+
+
