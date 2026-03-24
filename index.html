@@ -381,29 +381,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             backdrop: "rgba(0,0,0,0.5)"
         });
     }
-// ✅ 新增：傳送 LIFF 訊息給自己
-  sendSelfMessage({
-    userName: window.userName,
-    status: status,
-    date: apiData.date,
-    time: apiData.time,
-    networkStatus: "公司網路"
-  });
-
-} else if(apiData.message.includes("成功")) {
-
-  Swal.fire({
-    icon: "warning",
-    title: `<span style="font-size:20px;color:#e67e22;">⚠ 非公司網路</span>`,
-    html: `<div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡請忽略 ◎</div>`,
-    showConfirmButton: false,
-    timer: 2000,
-    backdrop: "rgba(0,0,0,0.5)"
-  });
-
-  
-
-
 
     // ===== 更新今日打卡紀錄 =====
     updateTodayRecords();
@@ -470,6 +447,142 @@ window.onload = async () => {
 
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
