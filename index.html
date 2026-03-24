@@ -128,6 +128,7 @@ button:hover {
     #userInfo { font-size:22px; }
     #todayRecords { font-size:16px; }
 }
+
 /* 點擊跳動動畫 */
 @keyframes bounce {
     0%   { transform: scale(1); }
@@ -139,6 +140,7 @@ button:hover {
 .bounce {
     animation: bounce 0.4s ease;
 }
+
 </style>
 
 <body>
@@ -232,7 +234,7 @@ window.userReady = false;
 // ====== 主要：極速取得使用者資訊 + IP ======
 async function updateUserInfo() {
     // 立即併發：初始化、取得 profile、取得 IP
-    const liffInit = liff.init({ liffId: "2008555754-M5oJ3AmD" });
+    const liffInit = liff.init({ liffId: "2009435359-2rSzV0kR" });
 
     const [_, ip] = await Promise.all([
         liffInit,
@@ -284,8 +286,57 @@ async function updateUserInfo() {
 
 // ====== 頁面載入即同步啟動 ======
 document.addEventListener("DOMContentLoaded", updateUserInfo);
+/* ===== 打卡後發送 Flex Message 給自己 ===== */
+async function sendSelfMessage(record){
+  if(!liff.isInClient()) return;
 
-   
+  let headerColor = "#3498db"; // 上班藍
+  if(record.status === "下班") headerColor = "#2ecc71"; // 下班綠
+  if(record.networkStatus !== "公司網路") headerColor = "#e67e22"; // 異常橘
+
+  let reasonText = record.networkStatus !== "公司網路"
+    ? "異常原因：非公司網路"
+    : "";
+
+  try{
+    await liff.sendMessages([{
+      type:'flex',
+      altText:'打卡通知',
+      contents:{
+        type:"bubble",
+        header:{
+          type:"box",
+          layout:"vertical",
+          contents:[{
+            type:"text",
+            text:`${record.userName} 已打卡`,
+            weight:"bold",
+            size:"lg",
+            color:"#ffffff"
+          }],
+          backgroundColor: headerColor,
+          paddingAll:"12px"
+        },
+        body:{
+          type:"box",
+          layout:"vertical",
+          spacing:"md",
+          contents:[
+            { type:"text", text:`狀態：${record.status}`, size:"md" },
+            { type:"text", text:`時間：${record.date} ${record.time}`, size:"md" },
+            { type:"text", text:`網路：${record.networkStatus}`, size:"md" },
+            ...(reasonText
+              ? [{ type:"text", text: reasonText, size:"md", color:"#e67e22" }]
+              : [])
+          ]
+        }
+      }
+    }]);
+  }catch(err){
+    console.error("LIFF 訊息傳送失敗:", err);
+  }
+}
+  
 
 // ===== 打卡函式（慢速動畫 + API 後立即彈窗 + 動畫完成自動收起） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
@@ -354,33 +405,46 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
 
     // ===== API 回傳後立即顯示完整彈窗，所有彈窗自動隱藏 2000ms =====
     if(apiData.message.includes("成功") && COMPANY_IPS.includes(ip)) {
-        Swal.fire({
-            icon: "success",
-            title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-            html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}`,
-            showConfirmButton: false,
-            timer: 2000,
-            backdrop: "rgba(0,0,0,0.5)"
-        });
-    } else if(apiData.message.includes("成功")) {
-        Swal.fire({
-            icon: "warning",
-            title: `<span style="font-size:20px;color:#e67e22;">⚠ 非公司網路</span>`,
-            html: `<div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡請忽略 ◎</div>`,
-            showConfirmButton: false,
-            timer: 2000,
-            backdrop: "rgba(0,0,0,0.5)"
-        });
-    } else {
-        Swal.fire({
-            icon: "error",
-            title: "😥 打卡已更新",
-            html: "請查看今日打卡紀錄勿重複打卡",
-            showConfirmButton: false,
-            timer: 2000,
-            backdrop: "rgba(0,0,0,0.5)"
-        });
-    }
+
+  Swal.fire({
+    icon: "success",
+    title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
+    html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}`,
+    showConfirmButton: false,
+    timer: 2000,
+    backdrop: "rgba(0,0,0,0.5)"
+  });
+
+  // ✅ 新增：傳送 LIFF 訊息給自己
+  sendSelfMessage({
+    userName: window.userName,
+    status: status,
+    date: apiData.date,
+    time: apiData.time,
+    networkStatus: "公司網路"
+  });
+
+} else if(apiData.message.includes("成功")) {
+
+  Swal.fire({
+    icon: "warning",
+    title: `<span style="font-size:20px;color:#e67e22;">⚠ 非公司網路</span>`,
+    html: `<div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡請忽略 ◎</div>`,
+    showConfirmButton: false,
+    timer: 2000,
+    backdrop: "rgba(0,0,0,0.5)"
+  });
+
+  // ✅ 新增：傳送 LIFF 訊息給自己
+  sendSelfMessage({
+    userName: window.userName,
+    status: status,
+    date: apiData.date,
+    time: apiData.time,
+    networkStatus: "非公司網路"
+  });
+}
+
 
     // ===== 更新今日打卡紀錄 =====
     updateTodayRecords();
@@ -444,9 +508,687 @@ window.onload = async () => {
     await updateTodayRecords();
 };
 </script>
-
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
