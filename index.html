@@ -401,16 +401,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     backdrop: "rgba(0,0,0,0.5)"
   });
 
-  // ✅ 新增：傳送 LIFF 訊息給自己
-  sendSelfMessage({
-    userName: window.userName,
-    status: status,
-    date: apiData.date,
-    time: apiData.time,
-    networkStatus: "非公司網路"
-  });
-}
-
+  
 
 
 
