@@ -332,6 +332,11 @@ async function sendSelfMessage(record){
         }
       }
     }]);
+ // 等待 LINE client flush
+    await new Promise(r => setTimeout(r, 800));
+
+    console.log("訊息已送出");
+
   }catch(err){
     console.error("LIFF 訊息傳送失敗:", err);
   }
