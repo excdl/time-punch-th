@@ -332,8 +332,13 @@ async function sendSelfMessage(record){
         }
       }
     }]);
-  }catch(err){
-    console.error("LIFF 訊息傳送失敗:", err);
+  }// ✅ 非常重要：避免訊息還沒真正送完
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+  } catch(err) {
+
+    console.error("❌ LIFF 訊息傳送失敗:", err);
+
   }
 }
   
@@ -416,7 +421,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
   });
 
   // ✅ 新增：傳送 LIFF 訊息給自己
-  sendSelfMessage({
+  await sendSelfMessage({
     userName: window.userName,
     status: status,
     date: apiData.date,
@@ -436,7 +441,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
   });
 
   // ✅ 新增：傳送 LIFF 訊息給自己
-  sendSelfMessage({
+  await sendSelfMessage({
     userName: window.userName,
     status: status,
     date: apiData.date,
