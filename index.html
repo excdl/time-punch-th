@@ -142,7 +142,6 @@ button:hover {
 }
 
 </style>
-</head>
 
 <body>
 
@@ -166,7 +165,7 @@ button:hover {
 
     <div id="todayRecords" onclick="refreshTodayRecords()" style="cursor:pointer">
     今日打卡紀錄：點擊可刷新
-    </div>
+</div>
 
     <button id="btnApprove">補打卡審批</button>
 
@@ -177,14 +176,14 @@ button:hover {
 <script>
 // ===== 設定 =====
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbwt240vX1DWYU5OfdJcnoe7f6k0PnSte-EmkFysPAi_eXj5RYaDGE2NPq2RmdiTX2LX/exec";
-const COMPANY_IPS  = ["220.132.124.179", "125.228.248.110", "114.34.128.159", "220.134.230.241","27.240.177.116","114.32.2.171"];
-// ===== 主管 USER_ID =====
+const COMPANY_IPS  = ["220.132.124.179",
+  "125.228.248.110",
+  "114.34.128.159",
+  "220.134.230.241","27.240.177.116","114.32.2.171"];
+// ===== 主管 USER_ID（請填入你的主管 LINE userId）=====
 const MANAGERS = [
     "U76174e2a9654ab2c7b1f037b28cb6c86","U7fdf4fbd467b9a93a23fac01ed03351b"
 ];
-
-// 建立全域暫存數組，用來加速紀錄顯示
-window.cachedRecords = [];
 
 // ====== 更新日期時間 ======
 function updateDateTime() {
@@ -195,7 +194,7 @@ function updateDateTime() {
 setInterval(updateDateTime, 1000);
 updateDateTime();
 
-// ====== 更快的 IP 取得 ======
+// ====== 更快的 IP 取得（含 sessionStorage 快取）======
 async function getIP() {
     const cache = sessionStorage.getItem("myIP");
     if (cache) return cache;
@@ -228,10 +227,13 @@ const btnEnd     = document.getElementById("btnEnd");
 
 btnStart.disabled = true;
 btnEnd.disabled = true;
+
+
 window.userReady = false;
 
 // ====== 主要：極速取得使用者資訊 + IP ======
 async function updateUserInfo() {
+    // 立即併發：初始化、取得 profile、取得 IP
     const liffInit = liff.init({ liffId: "2008555754-M5oJ3AmD" });
 
     const [_, ip] = await Promise.all([
@@ -239,10 +241,12 @@ async function updateUserInfo() {
         getIP()
     ]);
 
+    // 若未登入 → 立刻登入
     if (!liff.isLoggedIn()) {
         await liff.login();
     }
 
+    // 再併發取得 profile 與 IP（保證登入後 profile 能正常回傳）
     const [profile, finalIP] = await Promise.all([
         liff.getProfile(),
         getIP()
@@ -251,39 +255,48 @@ async function updateUserInfo() {
     window.userId = profile.userId;
     window.userName = profile.displayName;
 
-    document.getElementById("userInfo").textContent = `${window.userName} 您好`;
+    document.getElementById("userInfo").textContent =
+        `${window.userName} 您好`;
 
+    // 管理員按鈕
     document.getElementById("btnApprove").style.display =
         MANAGERS.includes(window.userId) ? "block" : "none";
 
+    // 網路狀態
     const s = document.getElementById("statusInfo");
     const isCompany = COMPANY_IPS.includes(finalIP);
 
     s.textContent = isCompany ? "公司網路" : "非公司網路";
     s.style.color = isCompany ? "#008000" : "#FF0000";
-    s.style.backgroundColor = isCompany ? "rgba(144,238,144,0.6)" : "rgba(255,182,193,0.3)";
+    s.style.backgroundColor = isCompany
+        ? "rgba(144,238,144,0.6)"
+        : "rgba(255,182,193,0.3)";
 
     s.style.padding = "5px 15px";
     s.style.borderRadius = "20px";
     s.style.display = "inline-block";
     s.style.fontWeight = "bold";
 
+    // 啟用按鈕
     btnStart.disabled = false;
     btnEnd.disabled = false;
+    
     window.userReady = true;
 }
 
+// ====== 頁面載入即同步啟動 ======
 document.addEventListener("DOMContentLoaded", updateUserInfo);
-
 /* ===== 打卡後發送 Flex Message 給自己 ===== */
 async function sendSelfMessage(record){
   if(!liff.isInClient()) return;
 
-  let headerColor = "#ff9f43"; 
-  if(record.status === "下班") headerColor = "#3498db"; 
-  if(record.networkStatus !== "公司網路") headerColor = "#e67e22"; 
+  let headerColor = "#3498db"; // 上班藍
+  if(record.status === "下班") headerColor = "#2ecc71"; // 下班綠
+  if(record.networkStatus !== "公司網路") headerColor = "#e67e22"; // 異常橘
 
-  let reasonText = record.networkStatus !== "公司網路" ? "異常原因：非公司網路" : "";
+  let reasonText = record.networkStatus !== "公司網路"
+    ? "異常原因：非公司網路"
+    : "";
 
   try{
     await liff.sendMessages([{
@@ -312,17 +325,23 @@ async function sendSelfMessage(record){
             { type:"text", text:`狀態：${record.status}`, size:"md" },
             { type:"text", text:`時間：${record.date} ${record.time}`, size:"md" },
             { type:"text", text:`網路：${record.networkStatus}`, size:"md" },
-            ...(reasonText ? [{ type:"text", text: reasonText, size:"md", color:"#e67e22" }] : [])
+            ...(reasonText
+              ? [{ type:"text", text: reasonText, size:"md", color:"#e67e22" }]
+              : [])
           ]
         }
       }
     }]);
+ // 等待 LINE client flush
     await new Promise(r => setTimeout(r, 800));
+
     console.log("訊息已送出");
+
   }catch(err){
     console.error("LIFF 訊息傳送失敗:", err);
   }
 }
+  
 
 // ===== 打卡函式（慢速動畫 + API 後立即彈窗 + 動畫完成自動收起） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
@@ -435,34 +454,54 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     updateTodayRecords();
 }
 
-
-// ====== 取得今日紀錄（僅初次載入、或手動點擊刷新時走網路請求） ======
+    
+// ===== 取得今日紀錄 =====
 async function updateTodayRecords() {
     const now = new Date();
     const today = now.toLocaleDateString("zh-TW").replace(/\//g, "/");
 
     try {
         const res = await fetch(`${API_ENDPOINT}?action=getToday&userId=${window.userId}&date=${today}`);
-        window.cachedRecords = await res.json(); // 存入全域快取
-        renderRecordsHTML(window.cachedRecords);
+        const data = await res.json();
+
+        const container = document.getElementById("todayRecords");
+        if (!data.length) {
+            container.innerHTML = "今日打卡紀錄：無";
+            return;
+        }
+
+        container.innerHTML = "今日打卡紀錄：<br>" + data.map(r => {
+            const time = fixTimeFormat(r.time);
+            const ipLabel = COMPANY_IPS.includes(r.ip) ? "(成功)" : "(失敗-連線錯誤請重新打卡)";
+            const makeup = r.isMakeup ? "(補打卡-待審核)" : "";
+            return `${r.status} ${time} ${ipLabel} ${makeup}`;
+        }).join("<br>");
+
     } catch(err) {
         console.error(err);
         document.getElementById("todayRecords").innerHTML = "今日打卡紀錄：讀取失敗";
     }
 }
 
-function refreshTodayRecords() {
+    function refreshTodayRecords() {
     const container = document.getElementById("todayRecords");
+
+    // 加動畫
     container.classList.add("bounce");
+
+    // 移除動畫，讓下次點擊還能觸發
     setTimeout(() => {
         container.classList.remove("bounce");
     }, 400);
-    updateTodayRecords(); // 手動點擊依然會強制走網路刷新最新狀態
+
+    // 更新今日打卡紀錄
+    updateTodayRecords();
 }
 
 // ===== 按鈕事件 =====
 document.getElementById("btnStart").onclick = () => performClockIn("上班");
 document.getElementById("btnEnd").onclick = () => performClockIn("下班");
+
 document.getElementById("btnApprove").onclick = () => {
     window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
@@ -470,11 +509,11 @@ document.getElementById("btnApprove").onclick = () => {
 // ===== 初始化 =====
 window.onload = async () => {
     await updateUserInfo();
-    await updateTodayRecords(); // 第一次網頁打開時載入
+    await updateTodayRecords();
 };
 </script>
+</body>
 </html>
-
 
 
 
