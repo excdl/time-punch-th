@@ -165,7 +165,7 @@ button:hover {
 
     <div id="todayRecords" onclick="refreshTodayRecords()" style="cursor:pointer">
     今日打卡紀錄：點擊可刷新
-</div>
+    </div>
 
     <button id="btnApprove">補打卡審批</button>
 
@@ -176,11 +176,8 @@ button:hover {
 <script>
 // ===== 設定 =====
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbwt240vX1DWYU5OfdJcnoe7f6k0PnSte-EmkFysPAi_eXj5RYaDGE2NPq2RmdiTX2LX/exec";
-const COMPANY_IPS  = ["220.132.124.179",
-  "125.228.248.110",
-  "114.34.128.159",
-  "220.134.230.241","27.240.177.116","114.32.2.171"];
-// ===== 主管 USER_ID（請填入你的主管 LINE userId）=====
+const COMPANY_IPS  = ["220.132.124.179", "125.228.248.110", "114.34.128.159", "220.134.230.241","27.240.177.116","114.32.2.171"];
+// ===== 主管 USER_ID =====
 const MANAGERS = [
     "U76174e2a9654ab2c7b1f037b28cb6c86","U7fdf4fbd467b9a93a23fac01ed03351b"
 ];
@@ -194,7 +191,7 @@ function updateDateTime() {
 setInterval(updateDateTime, 1000);
 updateDateTime();
 
-// ====== 更快的 IP 取得（含 sessionStorage 快取）======
+// ====== 更快的 IP 取得 ======
 async function getIP() {
     const cache = sessionStorage.getItem("myIP");
     if (cache) return cache;
@@ -227,13 +224,10 @@ const btnEnd     = document.getElementById("btnEnd");
 
 btnStart.disabled = true;
 btnEnd.disabled = true;
-
-
 window.userReady = false;
 
 // ====== 主要：極速取得使用者資訊 + IP ======
 async function updateUserInfo() {
-    // 立即併發：初始化、取得 profile、取得 IP
     const liffInit = liff.init({ liffId: "2008555754-M5oJ3AmD" });
 
     const [_, ip] = await Promise.all([
@@ -241,12 +235,10 @@ async function updateUserInfo() {
         getIP()
     ]);
 
-    // 若未登入 → 立刻登入
     if (!liff.isLoggedIn()) {
         await liff.login();
     }
 
-    // 再併發取得 profile 與 IP（保證登入後 profile 能正常回傳）
     const [profile, finalIP] = await Promise.all([
         liff.getProfile(),
         getIP()
@@ -255,48 +247,39 @@ async function updateUserInfo() {
     window.userId = profile.userId;
     window.userName = profile.displayName;
 
-    document.getElementById("userInfo").textContent =
-        `${window.userName} 您好`;
+    document.getElementById("userInfo").textContent = `${window.userName} 您好`;
 
-    // 管理員按鈕
     document.getElementById("btnApprove").style.display =
         MANAGERS.includes(window.userId) ? "block" : "none";
 
-    // 網路狀態
     const s = document.getElementById("statusInfo");
     const isCompany = COMPANY_IPS.includes(finalIP);
 
     s.textContent = isCompany ? "公司網路" : "非公司網路";
     s.style.color = isCompany ? "#008000" : "#FF0000";
-    s.style.backgroundColor = isCompany
-        ? "rgba(144,238,144,0.6)"
-        : "rgba(255,182,193,0.3)";
+    s.style.backgroundColor = isCompany ? "rgba(144,238,144,0.6)" : "rgba(255,182,193,0.3)";
 
     s.style.padding = "5px 15px";
     s.style.borderRadius = "20px";
     s.style.display = "inline-block";
     s.style.fontWeight = "bold";
 
-    // 啟用按鈕
     btnStart.disabled = false;
     btnEnd.disabled = false;
-    
     window.userReady = true;
 }
 
-// ====== 頁面載入即同步啟動 ======
 document.addEventListener("DOMContentLoaded", updateUserInfo);
+
 /* ===== 打卡後發送 Flex Message 給自己 ===== */
 async function sendSelfMessage(record){
   if(!liff.isInClient()) return;
 
-  let headerColor = "#3498db"; // 上班藍
-  if(record.status === "下班") headerColor = "#2ecc71"; // 下班綠
-  if(record.networkStatus !== "公司網路") headerColor = "#e67e22"; // 異常橘
+  let headerColor = "#3498db"; 
+  if(record.status === "下班") headerColor = "#2ecc71"; 
+  if(record.networkStatus !== "公司網路") headerColor = "#e67e22"; 
 
-  let reasonText = record.networkStatus !== "公司網路"
-    ? "異常原因：非公司網路"
-    : "";
+  let reasonText = record.networkStatus !== "公司網路" ? "異常原因：非公司網路" : "";
 
   try{
     await liff.sendMessages([{
@@ -325,25 +308,19 @@ async function sendSelfMessage(record){
             { type:"text", text:`狀態：${record.status}`, size:"md" },
             { type:"text", text:`時間：${record.date} ${record.time}`, size:"md" },
             { type:"text", text:`網路：${record.networkStatus}`, size:"md" },
-            ...(reasonText
-              ? [{ type:"text", text: reasonText, size:"md", color:"#e67e22" }]
-              : [])
+            ...(reasonText ? [{ type:"text", text: reasonText, size:"md", color:"#e67e22" }] : [])
           ]
         }
       }
     }]);
- // 等待 LINE client flush
     await new Promise(r => setTimeout(r, 800));
-
     console.log("訊息已送出");
-
   }catch(err){
     console.error("LIFF 訊息傳送失敗:", err);
   }
 }
-  
 
-// ===== 打卡函式（慢速動畫 + API 後立即彈窗 + 動畫完成自動收起） =====
+// ===== 打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady) {
         Swal.fire({ icon:"info", title:"請稍候", html:"使用者資料尚未載入", timer:1500, showConfirmButton:false });
@@ -371,25 +348,23 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
 
     let progress = 0;
 
-    // ===== 動畫慢速倒數（慢 50%） =====
     function animate() {
         progress = Math.min(progress + 0.005, 1);
         circle.style.strokeDashoffset = circumference * (1 - progress);
 
         const rC = Math.round(startColor.r*(1-progress) + endColor.r*progress);
-        const gC = Math.round(startColor.g*(1-progress) + endColor.g*progress);
-        const bC = Math.round(startColor.b*(1-progress) + endColor.b*progress);
-        circle.style.stroke = `rgb(${rC},${gC},${bC})`;
+        const gC = Math.round(startColor.g*(1-progress) + gC = endColor.g*progress); // 修正原程式的小手誤
+        const bC = Math.round(startColor.b*(1-progress) + bC = endColor.b*progress); // 修正原程式的小手誤
+        circle.style.stroke = `rgb(${Math.round(startColor.r*(1-progress) + endColor.r*progress)},${Math.round(startColor.g*(1-progress) + endColor.g*progress)},${Math.round(startColor.b*(1-progress) + endColor.b*progress)})`;
 
         if(progress < 1) {
             requestAnimationFrame(animate);
         } else {
-            // 動畫完成後淡出倒數框
             wrapper.style.transition = "opacity 0.6s";
             wrapper.style.opacity = 0;
             setTimeout(() => {
                 wrapper.style.display = "none";
-                wrapper.style.opacity = 1; // 下次使用時恢復透明度
+                wrapper.style.opacity = 1;
             }, 600);
         }
     }
@@ -408,53 +383,56 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         apiData = { message:"失敗" };
     }
 
-    // ===== API 回傳後立即顯示完整彈窗，所有彈窗自動隱藏 2000ms =====
-    if(apiData.message.includes("成功") && COMPANY_IPS.includes(ip)) {
+    // ===== 精準的彈窗與傳送訊息邏輯群組 =====
+    if (apiData && apiData.message && apiData.message.includes("成功")) {
+        const isCompanyNet = COMPANY_IPS.includes(ip);
+        const netStatusText = isCompanyNet ? "公司網路" : "非公司網路";
 
-   // ✅ 新增：傳送 LIFF 訊息給自己
-   sendSelfMessage({
-    userName: window.userName,
-    status: status,
-    date: apiData.date,
-    time: apiData.time,
-    networkStatus: "公司網路"
-  });
+        if (isCompanyNet) {
+            // 情況 A：成功且在公司網路
+            Swal.fire({
+                icon: "success",
+                title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
+                html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}<br><small style="color:green;">連線狀態：公司網路</small>`,
+                showConfirmButton: false,
+                timer: 2000,
+                backdrop: "rgba(0,0,0,0.5)"
+            });
+        } else {
+            // 情況 B：成功但「非」公司網路（異地打卡）
+            Swal.fire({
+                icon: "warning",
+                title: `<span style="font-size:20px;color:#e67e22;">⚠ 非公司網路</span>`,
+                html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}<br><div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡請忽略 ◎</div>`,
+                showConfirmButton: false,
+                timer: 2000,
+                backdrop: "rgba(0,0,0,0.5)"
+            });
+        }
 
-} else if(apiData.message.includes("成功")) {
+        // 只要 API 回傳成功，一定會發送自訂 LINE 訊息
+        sendSelfMessage({
+            userName: window.userName,
+            status: status,
+            date: apiData.date,
+            time: apiData.time,
+            networkStatus: netStatusText
+        });
 
-  Swal.fire({
-    icon: "warning",
-    title: `<span style="font-size:20px;color:#e67e22;">⚠ 非公司網路</span>`,
-    html: `<div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡請忽略 ◎</div>`,
-    showConfirmButton: false,
-    timer: 2000,
-    backdrop: "rgba(0,0,0,0.5)"
-  });
+    } else {
+        // 情況 C：API 回傳失敗或發生連線錯誤
+        Swal.fire({
+            icon: "error",
+            title: "打卡失敗",
+            text: "伺服器處理失敗或連線錯誤，請重試！",
+            showConfirmButton: true
+        });
+    }
 
-  // ✅ 新增：傳送 LIFF 訊息給自己
-    sendSelfMessage({
-    userName: window.userName,
-    status: status,
-    date: apiData.date,
-    time: apiData.time,
-    networkStatus: "非公司網路"
-  });
-}
-        
-    Swal.fire({
-    icon: "success",
-    title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-    html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}`,
-    showConfirmButton: false,
-    timer: 2000,
-    backdrop: "rgba(0,0,0,0.5)"
-  });
-
-     // ===== 更新今日打卡紀錄 =====
+    // ===== 更新今日打卡紀錄 =====
     updateTodayRecords();
 }
 
-    
 // ===== 取得今日紀錄 =====
 async function updateTodayRecords() {
     const now = new Date();
@@ -483,25 +461,16 @@ async function updateTodayRecords() {
     }
 }
 
-    function refreshTodayRecords() {
+function refreshTodayRecords() {
     const container = document.getElementById("todayRecords");
-
-    // 加動畫
     container.classList.add("bounce");
-
-    // 移除動畫，讓下次點擊還能觸發
-    setTimeout(() => {
-        container.classList.remove("bounce");
-    }, 400);
-
-    // 更新今日打卡紀錄
+    setTimeout(() => { container.classList.remove("bounce"); }, 400);
     updateTodayRecords();
 }
 
 // ===== 按鈕事件 =====
 document.getElementById("btnStart").onclick = () => performClockIn("上班");
 document.getElementById("btnEnd").onclick = () => performClockIn("下班");
-
 document.getElementById("btnApprove").onclick = () => {
     window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
@@ -512,7 +481,6 @@ window.onload = async () => {
     await updateTodayRecords();
 };
 </script>
-</body>
 </html>
 
 
