@@ -142,6 +142,7 @@ button:hover {
 }
 
 </style>
+</head>
 
 <body>
 
@@ -352,10 +353,11 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         progress = Math.min(progress + 0.005, 1);
         circle.style.strokeDashoffset = circumference * (1 - progress);
 
+        // 修正：移除這裡重複賦值的語法錯誤
         const rC = Math.round(startColor.r*(1-progress) + endColor.r*progress);
-        const gC = Math.round(startColor.g*(1-progress) + gC = endColor.g*progress); // 修正原程式的小手誤
-        const bC = Math.round(startColor.b*(1-progress) + bC = endColor.b*progress); // 修正原程式的小手誤
-        circle.style.stroke = `rgb(${Math.round(startColor.r*(1-progress) + endColor.r*progress)},${Math.round(startColor.g*(1-progress) + endColor.g*progress)},${Math.round(startColor.b*(1-progress) + endColor.b*progress)})`;
+        const gC = Math.round(startColor.g*(1-progress) + endColor.g*progress);
+        const bC = Math.round(startColor.b*(1-progress) + endColor.b*progress);
+        circle.style.stroke = `rgb(${rC},${gC},${bC})`;
 
         if(progress < 1) {
             requestAnimationFrame(animate);
@@ -383,51 +385,44 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         apiData = { message:"失敗" };
     }
 
-    // ===== 精準的彈窗與傳送訊息邏輯群組 =====
-    if (apiData && apiData.message && apiData.message.includes("成功")) {
-        const isCompanyNet = COMPANY_IPS.includes(ip);
-        const netStatusText = isCompanyNet ? "公司網路" : "非公司網路";
-
-        if (isCompanyNet) {
-            // 情況 A：成功且在公司網路
-            Swal.fire({
-                icon: "success",
-                title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-                html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}<br><small style="color:green;">連線狀態：公司網路</small>`,
-                showConfirmButton: false,
-                timer: 2000,
-                backdrop: "rgba(0,0,0,0.5)"
-            });
-        } else {
-            // 情況 B：成功但「非」公司網路（異地打卡）
-            Swal.fire({
-                icon: "warning",
-                title: `<span style="font-size:20px;color:#e67e22;">⚠ 非公司網路</span>`,
-                html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}<br><div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡請忽略 ◎</div>`,
-                showConfirmButton: false,
-                timer: 2000,
-                backdrop: "rgba(0,0,0,0.5)"
-            });
-        }
-
-        // 只要 API 回傳成功，一定會發送自訂 LINE 訊息
+    // ===== 完全維持您原本的判斷分支與 SweetAlert2 邏輯 =====
+    if(apiData.message.includes("成功") && COMPANY_IPS.includes(ip)) {
+        // 新增：傳送 LIFF 訊息給自己
         sendSelfMessage({
             userName: window.userName,
             status: status,
             date: apiData.date,
             time: apiData.time,
-            networkStatus: netStatusText
+            networkStatus: "公司網路"
+        });
+    } else if(apiData.message.includes("成功")) {
+        Swal.fire({
+            icon: "warning",
+            title: `<span style="font-size:20px;color:#e67e22;">⚠ 非公司網路</span>`,
+            html: `<div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡請忽略 ◎</div>`,
+            showConfirmButton: false,
+            timer: 2000,
+            backdrop: "rgba(0,0,0,0.5)"
         });
 
-    } else {
-        // 情況 C：API 回傳失敗或發生連線錯誤
-        Swal.fire({
-            icon: "error",
-            title: "打卡失敗",
-            text: "伺服器處理失敗或連線錯誤，請重試！",
-            showConfirmButton: true
+        // 新增：傳送 LIFF 訊息給自己
+        sendSelfMessage({
+            userName: window.userName,
+            status: status,
+            date: apiData.date,
+            time: apiData.time,
+            networkStatus: "非公司網路"
         });
     }
+        
+    Swal.fire({
+        icon: "success",
+        title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
+        html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}`,
+        showConfirmButton: false,
+        timer: 2000,
+        backdrop: "rgba(0,0,0,0.5)"
+    });
 
     // ===== 更新今日打卡紀錄 =====
     updateTodayRecords();
@@ -464,7 +459,9 @@ async function updateTodayRecords() {
 function refreshTodayRecords() {
     const container = document.getElementById("todayRecords");
     container.classList.add("bounce");
-    setTimeout(() => { container.classList.remove("bounce"); }, 400);
+    setTimeout(() => {
+        container.classList.remove("bounce");
+    }, 400);
     updateTodayRecords();
 }
 
