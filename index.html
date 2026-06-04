@@ -66,9 +66,9 @@ button:hover {
     box-shadow: 0 8px 14px rgba(0,0,0,0.12);
 }
 
-/* 按鈕顏色 */
-#btnStart { background:linear-gradient(145deg, #3498db, #2980b9); color:white; }
-#btnEnd { background:linear-gradient(145deg, #2ecc71, #27ae60); color:white; }
+/* 按鈕顏色（已修改：上班橘、下班藍） */
+#btnStart { background: linear-gradient(145deg, #ff9f43, #ee5253); color: white; }
+#btnEnd { background: linear-gradient(145deg, #3498db, #2980b9); color: white; }
 
 /* 倒數動畫 */
 #countdownWrapper { 
@@ -276,8 +276,9 @@ document.addEventListener("DOMContentLoaded", updateUserInfo);
 async function sendSelfMessage(record){
   if(!liff.isInClient()) return;
 
-  let headerColor = "#3498db"; 
-  if(record.status === "下班") headerColor = "#2ecc71"; 
+  // 修改：將 Flex 訊息的頂端顏色同步調整（上班橘、下班藍）
+  let headerColor = "#ff9f43"; 
+  if(record.status === "下班") headerColor = "#3498db"; 
   if(record.networkStatus !== "公司網路") headerColor = "#e67e22"; 
 
   let reasonText = record.networkStatus !== "公司網路" ? "異常原因：非公司網路" : "";
@@ -335,9 +336,10 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     wrapper.style.display = "block";
     text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
 
+    // 修改：將圓圈倒數動畫的漸層顏色同步變更（上班橘色、下班藍色）
     const colors = {
-        上班: { start: { r:52, g:152, b:219 }, end: { r:41, g:128, b:185 } },
-        下班: { start: { r:46, g:204, b:113 }, end: { r:39, g:174, b:96 } },
+        上班: { start: { r:255, g:159, b:67 }, end: { r:238, g:82, b:83 } },
+        下班: { start: { r:52, g:152, b:219 }, end: { r:41, g:128, b:185 } },
         補打卡: { start: { r:243, g:156, b:18 }, end: { r:243, g:156, b:18 } }
     };
     const { start: startColor, end: endColor } = isMakeup ? colors.補打卡 : colors[status];
@@ -353,7 +355,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         progress = Math.min(progress + 0.005, 1);
         circle.style.strokeDashoffset = circumference * (1 - progress);
 
-        // 修正：移除這裡重複賦值的語法錯誤
         const rC = Math.round(startColor.r*(1-progress) + endColor.r*progress);
         const gC = Math.round(startColor.g*(1-progress) + endColor.g*progress);
         const bC = Math.round(startColor.b*(1-progress) + endColor.b*progress);
@@ -385,9 +386,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         apiData = { message:"失敗" };
     }
 
-    // ===== 完全維持您原本的判斷分支與 SweetAlert2 邏輯 =====
     if(apiData.message.includes("成功") && COMPANY_IPS.includes(ip)) {
-        // 新增：傳送 LIFF 訊息給自己
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -405,7 +404,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             backdrop: "rgba(0,0,0,0.5)"
         });
 
-        // 新增：傳送 LIFF 訊息給自己
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -424,7 +422,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         backdrop: "rgba(0,0,0,0.5)"
     });
 
-    // ===== 更新今日打卡紀錄 =====
     updateTodayRecords();
 }
 
