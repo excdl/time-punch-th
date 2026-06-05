@@ -66,7 +66,7 @@ button:hover {
     box-shadow: 0 8px 14px rgba(0,0,0,0.12);
 }
 
-/* 按鈕顏色：上班橘、下班藍 */
+/* 按鈕顏色：上班橘紅、下班藍 */
 #btnStart { background: linear-gradient(145deg, #ff9f43, #ee5253); color: white; }
 #btnEnd { background: linear-gradient(145deg, #3498db, #2980b9); color: white; }
 
@@ -83,6 +83,7 @@ button:hover {
     stroke-linecap:round; 
     transform: rotate(-90deg);
     transform-origin: center;
+    /* 移除原本在 JS 內動態複寫的變色，改由 SVG id 漸層控制 */
 }
 #countdownText { 
     position:absolute; 
@@ -140,7 +141,6 @@ button:hover {
 .bounce {
     animation: bounce 0.4s ease;
 }
-
 </style>
 </head>
 
@@ -158,6 +158,21 @@ button:hover {
 
     <div id="countdownWrapper">
         <svg width="130" height="130">
+            <!-- 定義與按鈕完全相同的漸層色 -->
+            <defs>
+                <linearGradient id="gradStart" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#ff9f43; stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#ee5253; stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="gradEnd" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3498db; stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#2980b9; stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="gradMakeup" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#8e44ad; stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#663399; stop-opacity:1" />
+                </linearGradient>
+            </defs>
             <circle id="circleProgress" cx="65" cy="65" r="55"></circle>
         </svg>
         <div id="countdownText">打卡中...</div>
@@ -173,10 +188,10 @@ button:hover {
 <script>
 // ===== 設定 =====
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbwt240vX1DWYU5OfdJcnoe7f6k0PnSte-EmkFysPAi_eXj5RYaDGE2NPq2RmdiTX2LX/exec";
-const COMPANY_IPS  = ["220.132.124.179", "125.228.248.110", "114.34.128.159", "220.134.230.241","27.240.177.116","114.32.2.171"];
+const COMPANY_IPS  = ["220.132.124.179", "125.228.248.110", "114.34.128.159", "220.134.230.241", "27.240.177.116", "114.32.2.171"];
 // ===== 主管 USER_ID =====
 const MANAGERS = [
-    "U76174e2a9654ab2c7b1f037b28cb6c86","U7fdf4fbd467b9a93a23fac01ed03351b"
+    "U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"
 ];
 
 // ====== 更新日期時間 ======
@@ -265,54 +280,53 @@ async function updateUserInfo() {
 document.addEventListener("DOMContentLoaded", updateUserInfo);
 
 /* ===== 打卡後發送 Flex Message 給自己 ===== */
-async function sendSelfMessage(record){
-  if(!liff.isInClient()) return;
+async function sendSelfMessage(record) {
+    if (!liff.isInClient()) return;
 
-  let headerColor = "#3498db"; // 上班藍
-  if(record.status === "下班") headerColor = "#2ecc71"; // 下班綠
-  if(record.networkStatus !== "公司網路") headerColor = "#e67e22"; // 異常橘
+    let headerColor = "#3498db"; // 上班藍
+    if (record.status === "下班") headerColor = "#2ecc71"; // 下班綠
+    if (record.networkStatus !== "公司網路") headerColor = "#e67e22"; // 異常橘
 
-  let reasonText = record.networkStatus !== "公司網路" ? "異常原因：非公司網路" : "";
+    let reasonText = record.networkStatus !== "公司網路" ? "異常原因：非公司網路" : "";
 
-  try{
-    await liff.sendMessages([{
-      type: 'flex',
-      altText: '打卡通知',
-      contents: {
-        type: "bubble",
-        header: {
-          type: "box",
-          layout: "vertical",
-          contents: [{
-            type: "text",
-            text: `${record.userName} 已打卡`,
-            weight: "bold",
-            size: "lg",
-            color: "#ffffff"
-          }],
-          backgroundColor: headerColor,
-          paddingAll: "12px"
-        },
-        body: {
-          type: "box",
-          layout: "vertical",
-          spacing: "md",
-          contents: [
-            { type: "text", text: `狀態：${record.status}`, size: "md" },
-            { type: "text", text: `時間：${record.date} ${record.time}`, size: "md" },
-            { type: "text", text: `網路：${record.networkStatus}`, size: "md" },
-            ...(reasonText ? [{ type: "text", text: reasonText, size: "md", color: "#e67e22" }] : [])
-          ]
-        }
-      }
-    }]);
-    
-    // 等待 LINE 內核確實把緩衝區送出
-    await new Promise(r => setTimeout(r, 800));
-    console.log("訊息已成功送出");
-  } catch(err) {
-    console.error("LIFF 訊息傳送失敗:", err);
-  }
+    try {
+        await liff.sendMessages([{
+            type: 'flex',
+            altText: '打卡通知',
+            contents: {
+                type: "bubble",
+                header: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [{
+                        type: "text",
+                        text: `${record.userName} 已打卡`,
+                        weight: "bold",
+                        size: "lg",
+                        color: "#ffffff"
+                    }],
+                    backgroundColor: headerColor,
+                    paddingAll: "12px"
+                },
+                body: {
+                    type: "box",
+                    layout: "vertical",
+                    spacing: "md",
+                    contents: [
+                        { type: "text", text: `狀態：${record.status}`, size: "md" },
+                        { type: "text", text: `時間：${record.date} ${record.time}`, size: "md" },
+                        { type: "text", text: `網路：${record.networkStatus}`, size: "md" },
+                        ...(reasonText ? [{ type: "text", text: reasonText, size: "md", color: "#e67e22" }] : [])
+                    ]
+                }
+            }
+        }]);
+        
+        await new Promise(r => setTimeout(r, 800));
+        console.log("訊息已成功送出");
+    } catch(err) {
+        console.error("LIFF 訊息傳送失敗:", err);
+    }
 }
 
 // ===== 打卡函式 =====
@@ -329,12 +343,14 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     wrapper.style.display = "block";
     text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
 
-    const colors = {
-        上班: { start: { r:52, g:152, b:219 }, end: { r:41, g:128, b:185 } },
-        下班: { start: { r:46, g:204, b:113 }, end: { r:39, g:174, b:96 } },
-        補打卡: { start: { r:243, g:156, b:18 }, end: { r:243, g:156, b:18 } }
-    };
-    const { start: startColor, end: endColor } = isMakeup ? colors.補打卡 : colors[status];
+    // 🌟 變更點：根據狀態直接指定對應的 SVG 漸層 id
+    if (isMakeup) {
+        circle.style.stroke = "url(#gradMakeup)";
+    } else if (status === "上班") {
+        circle.style.stroke = "url(#gradStart)";
+    } else if (status === "下班") {
+        circle.style.stroke = "url(#gradEnd)";
+    }
 
     const radius = 60;
     const circumference = 2 * Math.PI * radius;
@@ -346,11 +362,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     function animate() {
         progress = Math.min(progress + 0.005, 1);
         circle.style.strokeDashoffset = circumference * (1 - progress);
-
-        const rC = Math.round(startColor.r*(1-progress) + endColor.r*progress);
-        const gC = Math.round(startColor.g*(1-progress) + endColor.g*progress);
-        const bC = Math.round(startColor.b*(1-progress) + endColor.b*progress);
-        circle.style.stroke = `rgb(${rC},${gC},${bC})`;
 
         if(progress < 1) {
             requestAnimationFrame(animate);
@@ -383,7 +394,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         const isCompany = COMPANY_IPS.includes(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
-        // 🌟 關鍵修正：前置加上了 await，強制確保 LINE 核心跑完發送才往下走
+        // 強制確保 LINE 核心跑完發送才往下走
         await sendSelfMessage({
             userName: window.userName,
             status: status,
