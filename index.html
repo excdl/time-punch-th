@@ -354,7 +354,7 @@ button:not(:disabled):active {
  
 <script>
 // ===== 設定 =====
-const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbz9_vNDoQb2ule_Cc15T84l7z8NLfh2_Uu3Bp68anYWSLpQ-WeieJO-hdm3l7MX5ShH/exec";
+const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbwCb9JkgYgPhydle8IG5V1vAGE6x6G03AaMeCih_MDRBVQRtstQ6fAmJL4BELgSEMcQ/exec";
 const COMPANY_IPS  = ["220.132.124.179", "125.228.248.110", "114.34.128.159", "220.134.230.241", "27.240.177.116", "114.32.2.171","114.34.203.176"];
 
 const MANAGERS = [
@@ -370,6 +370,7 @@ const btnEnd = document.getElementById("btnEnd");
 const todayRecords = document.getElementById("todayRecords");
 
 window.userReady = false;
+window.isClockingIn = false; // 防重複點擊鎖定
 
 // ====== 更新日期時間與星期 ======
 function updateDateTime() {
@@ -541,7 +542,7 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 打卡函式 =====
+// ===== 打卡函式 (含防重複點擊) =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady) {
         Swal.fire({ 
@@ -554,6 +555,9 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
         return;
     }
+
+    if (window.isClockingIn) return; // 鎖定防手殘
+    window.isClockingIn = true;
 
     const ip = await getIP();
 
@@ -583,6 +587,8 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     } catch(err) {
         console.error(err);
         apiData = { message:"失敗" };
+    } finally {
+        window.isClockingIn = false; // 解除鎖定
     }
 
     if (apiData.message && apiData.message.includes("成功")) {
