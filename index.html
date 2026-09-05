@@ -558,7 +558,7 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 打卡函式 =====
+// ===== 優化後的打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady) {
         Swal.fire({ 
@@ -574,6 +574,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
 
     const ip = await getIP();
 
+    // 顯示打卡處理中 Loading
     Swal.fire({
         html: `
             <div style="padding: 15px 0; text-align: center;">
@@ -602,18 +603,23 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         apiData = { message:"失敗" };
     }
 
+    // 🔴 務必第一時間關閉 Loading 遮罩，確保畫面絕對不會卡死
+    Swal.close(); 
+
     if (apiData.message && apiData.message.includes("成功")) {
         const isCompany = COMPANY_IPS.includes(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
         
-        await sendSelfMessage({
+        // 🛡️ 將發送 LINE 訊息改為背景執行，即使失敗也不影響打卡成功畫面
+        sendSelfMessage({
             userName: window.userName,
             status: status,
             date: apiData.date,
             time: apiData.time,
             networkStatus: networkStatusStr
-        });
+        }).catch(err => console.error("背景傳送訊息失敗", err));
 
+        // 立即顯示成功提示
         if (isCompany) {
             Swal.fire({
                 icon: "success",
@@ -639,7 +645,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         Swal.fire({
             icon: "error",
             title: "打卡失敗",
-            text: "請檢查網路連線或重新整理頁面試試看！",
+            text: apiData.message || "請檢查網路連線或重新整理頁面試試看！",
             confirmButtonText: "確定",
             customClass: { popup: 'custom-swal-popup' }
         });
