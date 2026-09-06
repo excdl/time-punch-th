@@ -558,7 +558,7 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 打卡函式 =====
+// ===== 打卡函式（保留程式一倒數圓圈 + 融合程式二訊息發送） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady) {
         Swal.fire({ 
@@ -573,53 +573,53 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     }
 
     const ip = await getIP();
-
-    // ===== 1. 改用程式一的倒數圓環動畫 UI =====
+    
+    // ===== 1. 完全保留程式一：倒數圓圈動畫初始化 =====
     const wrapper = document.getElementById("countdownWrapper");
     const circle = document.getElementById("circleProgress");
     const text = document.getElementById("countdownText");
     
-    if (wrapper && circle && text) {
-        wrapper.style.display = "block";
-        wrapper.style.opacity = 1;
-        text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
+    wrapper.style.display = "block";
+    wrapper.style.opacity = 1;
+    text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
 
-        const colors = {
-            上班: { start: { r:52, g:152, b:219 }, end: { r:41, g:128, b:185 } },
-            下班: { start: { r:46, g:204, b:113 }, end: { r:39, g:174, b:96 } },
-            補打卡: { start: { r:243, g:156, b:18 }, end: { r:243, g:156, b:18 } }
-        };
-        const { start: startColor, end: endColor } = isMakeup ? colors.補打卡 : (colors[status] || colors.上班);
+    const colors = {
+        上班: { start: { r:52, g:152, b:219 }, end: { r:41, g:128, b:185 } },
+        下班: { start: { r:46, g:204, b:113 }, end: { r:39, g:174, b:96 } },
+        補打卡: { start: { r:243, g:156, b:18 }, end: { r:243, g:156, b:18 } }
+    };
+    const { start: startColor, end: endColor } = isMakeup ? colors.補打卡 : (colors[status] || colors.上班);
 
-        const radius = 60;
-        const circumference = 2 * Math.PI * radius;
-        circle.style.strokeDasharray = circumference;
-        circle.style.strokeDashoffset = circumference;
+    const radius = 60;
+    const circumference = 2 * Math.PI * radius;
+    circle.style.strokeDasharray = circumference;
+    circle.style.strokeDashoffset = circumference;
 
-        let progress = 0;
+    let progress = 0;
 
-        function animate() {
-            progress = Math.min(progress + 0.005, 1);
-            circle.style.strokeDashoffset = circumference * (1 - progress);
+    // ===== 完全保留程式一：動畫慢速倒數（慢 50%） =====
+    function animate() {
+        progress = Math.min(progress + 0.005, 1);
+        circle.style.strokeDashoffset = circumference * (1 - progress);
 
-            const rC = Math.round(startColor.r * (1 - progress) + endColor.r * progress);
-            const gC = Math.round(startColor.g * (1 - progress) + endColor.g * progress);
-            const bC = Math.round(startColor.b * (1 - progress) + endColor.b * progress);
-            circle.style.stroke = `rgb(${rC},${gC},${bC})`;
+        const rC = Math.round(startColor.r*(1-progress) + endColor.r*progress);
+        const gC = Math.round(startColor.g*(1-progress) + endColor.g*progress);
+        const bC = Math.round(startColor.b*(1-progress) + endColor.b*progress);
+        circle.style.stroke = `rgb(${rC},${gC},${bC})`;
 
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                wrapper.style.transition = "opacity 0.6s";
-                wrapper.style.opacity = 0;
-                setTimeout(() => {
-                    wrapper.style.display = "none";
-                    wrapper.style.opacity = 1;
-                }, 600);
-            }
+        if(progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            // 動畫完成後淡出倒數框
+            wrapper.style.transition = "opacity 0.6s";
+            wrapper.style.opacity = 0;
+            setTimeout(() => {
+                wrapper.style.display = "none";
+                wrapper.style.opacity = 1; // 下次使用時恢復透明度
+            }, 600);
         }
-        requestAnimationFrame(animate);
     }
+    requestAnimationFrame(animate);
 
     // ===== 2. 發送 API =====
     let apiData = null;
@@ -639,32 +639,34 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         const isCompany = COMPANY_IPS.includes(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
         
-        // 關鍵修改：不使用 await，讓訊息在背景發送，避免卡住彈窗與頁面
-        sendSelfMessage({
-            userName: window.userName,
-            status: status,
-            date: apiData.date,
-            time: apiData.time,
-            networkStatus: networkStatusStr
-        }).catch(err => console.error("背景發送訊息失敗:", err));
+        // 觸發背景發送訊息（不使用 await 避免阻塞）
+        if (typeof sendSelfMessage === "function") {
+            sendSelfMessage({
+                userName: window.userName,
+                status: status,
+                date: apiData.date,
+                time: apiData.time,
+                networkStatus: networkStatusStr
+            }).catch(err => console.error("發送訊息失敗:", err));
+        }
 
         if (isCompany) {
             Swal.fire({
                 icon: "success",
                 title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-                html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${apiData.date} ${apiData.time}</span></div>`,
-                showConfirmButton: false, 
-                timer: 2000, 
+                html: `<strong>打卡時間：</strong> ${apiData.date} ${apiData.time}`,
+                showConfirmButton: false,
+                timer: 2000,
                 backdrop: "rgba(0,0,0,0.5)",
                 customClass: { popup: 'custom-swal-popup' }
             });
         } else {
             Swal.fire({
                 icon: "warning",
-                title: "⚠ 非公司網路",
-                html: `<div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡成功 ◎</div><br><small>打卡時間：${apiData.date} ${apiData.time}</small>`,
-                showConfirmButton: false, 
-                timer: 2500, 
+                title: `<span style="font-size:20px;color:#e67e22;">⚠ 非公司網路</span>`,
+                html: `<div style="font-size:16px;color:#3498db;font-weight:bold;margin-top:8px;">◎ 異地打卡請忽略 ◎</div><br><small>打卡時間：${apiData.date} ${apiData.time}</small>`,
+                showConfirmButton: false,
+                timer: 2000,
                 backdrop: "rgba(0,0,0,0.5)",
                 customClass: { popup: 'custom-swal-popup' }
             });
@@ -672,16 +674,19 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     } else {
         Swal.fire({
             icon: "error",
-            title: "打卡失敗",
-            text: "請檢查網路連線或重新整理頁面試試看！",
-            confirmButtonText: "確定",
+            title: "😥 打卡已更新",
+            html: "請查看今日打卡紀錄勿重複打卡",
+            showConfirmButton: false,
+            timer: 2000,
+            backdrop: "rgba(0,0,0,0.5)",
             customClass: { popup: 'custom-swal-popup' }
         });
     }
 
+    // ===== 4. 更新今日打卡紀錄 =====
     updateTodayRecords();
 }
-
+    
 // ===== 按鈕事件 =====
 document.getElementById("btnStart").onclick = () => performClockIn("上班");
 document.getElementById("btnEnd").onclick = () => performClockIn("下班");
