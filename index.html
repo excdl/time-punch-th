@@ -465,6 +465,49 @@ async function updateUserInfo() {
     window.userReady = true;
 }
 
+// ===== 載入與更新今日打卡紀錄的函式 =====
+async function updateTodayRecords() {
+    if (!window.userId) return;
+    try {
+        const res = await fetch(`${API_ENDPOINT}?userId=${window.userId}&action=getRecords`);
+        const data = await res.json();
+        
+        if (data && data.records && data.records.length > 0) {
+            todayRecords.innerHTML = "";
+            todayRecords.className = ""; // 移除空狀態的樣式
+            
+            data.records.forEach(rec => {
+                const timeStr = fixTimeFormat(rec.time);
+                const makeupBadge = rec.isMakeup ? `<span class="badge-makeup">補打卡</span>` : "";
+                
+                const item = document.createElement("div");
+                item.className = "record-item";
+                item.innerHTML = `
+                    <div class="record-info">
+                        <div class="record-status">${rec.status} ${makeupBadge}</div>
+                        <div class="record-details">${rec.date}</div>
+                    </div>
+                    <div class="record-time">${timeStr}</div>
+                `;
+                todayRecords.appendChild(item);
+            });
+        } else {
+            todayRecords.className = "records-empty";
+            todayRecords.innerHTML = "今日尚無打卡紀錄";
+        }
+    } catch (err) {
+        console.error("載入紀錄失敗", err);
+        todayRecords.className = "records-empty";
+        todayRecords.innerHTML = "載入紀錄失敗，請點擊標題重試";
+    }
+}
+
+// 手動點擊標題可以重新整理紀錄
+function refreshTodayRecords() {
+    todayRecords.innerHTML = "正在重新整理…";
+    updateTodayRecords();
+}
+
 // ===== 優化後的打卡函式（含防呆與 LINE 通知） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady) {
@@ -581,10 +624,10 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
     }
 
-    // ===== 更新今日打卡紀錄 =====
-    if (typeof updateTodayRecords === "function") {
+    // ===== 延遲 400ms 後立即更新今日打卡紀錄（確保後端已寫入資料庫） =====
+    setTimeout(() => {
         updateTodayRecords();
-    }
+    }, 400);
 }
     
 // ===== 按鈕事件 =====
