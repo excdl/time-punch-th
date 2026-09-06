@@ -480,7 +480,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     const text = document.getElementById("countdownText");
 
     if (wrapper && circle && text) {
-        wrapper.style.display = "block";
+        wrapper.style.display = "flex";
         text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
 
         const colors = {
