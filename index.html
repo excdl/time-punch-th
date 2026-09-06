@@ -457,9 +457,9 @@ async function updateUserInfo() {
     window.userReady = true;
 }
 
-// ===== 打卡函式（保留程式一倒數圓圈 + 程式二邏輯） =====
+// ===== 修復版打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
-    if (!window.userReady) {
+    if (typeof window.userReady !== "undefined" && !window.userReady) {
         Swal.fire({ 
             icon: "info", 
             title: "請稍候", 
@@ -471,16 +471,22 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         return;
     }
 
-    const ip = await getIP();
+    let ip = "";
+    try {
+        ip = await getIP();
+    } catch (err) {
+        console.warn("無法取得 IP:", err);
+        ip = "0.0.0.0";
+    }
 
-    // ===== 1. 保留程式一：倒數圓圈動畫與色彩設定 =====
+    // ===== 倒數動畫（加入元素存在性檢查，防止 null 報錯） =====
     const wrapper = document.getElementById("countdownWrapper");
     const circle = document.getElementById("circleProgress");
     const text = document.getElementById("countdownText");
     
     if (wrapper && circle && text) {
         wrapper.style.display = "block";
-        wrapper.style.opacity = 1;
+        wrapper.style.opacity = "1";
         text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
 
         const colors = {
@@ -498,7 +504,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         let progress = 0;
 
         function animate() {
-            progress = Math.min(progress + 0.005, 1); // 控制動畫速度
+            progress = Math.min(progress + 0.005, 1);
             circle.style.strokeDashoffset = circumference * (1 - progress);
 
             const rC = Math.round(startColor.r * (1 - progress) + endColor.r * progress);
@@ -509,19 +515,18 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             if (progress < 1) {
                 requestAnimationFrame(animate);
             } else {
-                // 動畫完成後淡出並隱藏
                 wrapper.style.transition = "opacity 0.6s";
-                wrapper.style.opacity = 0;
+                wrapper.style.opacity = "0";
                 setTimeout(() => {
                     wrapper.style.display = "none";
-                    wrapper.style.opacity = 1;
+                    wrapper.style.opacity = "1";
                 }, 600);
             }
         }
         requestAnimationFrame(animate);
     }
 
-    // ===== 2. 發送 API 打卡請求 =====
+    // ===== 發送打卡 API =====
     let apiData = null;
     try {
         const res = await fetch(API_ENDPOINT, {
@@ -530,23 +535,25 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
         apiData = await res.json();
     } catch(err) {
-        console.error(err);
+        console.error("API 請求失敗:", err);
         apiData = { message: "失敗" };
     }
 
-    // ===== 3. API 回傳後處理（結合程式二的 Swal 與訊息） =====
+    // ===== 處理回傳結果 =====
     if (apiData.message && apiData.message.includes("成功")) {
-        const isCompany = COMPANY_IPS.includes(ip);
+        const isCompany = typeof COMPANY_IPS !== "undefined" && COMPANY_IPS.includes(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
         
-        // 背景執行訊息發送，避免卡住畫面
-        sendSelfMessage({
-            userName: window.userName,
-            status: status,
-            date: apiData.date,
-            time: apiData.time,
-            networkStatus: networkStatusStr
-        }).catch(err => console.error("背景發送訊息失敗:", err));
+        // 背景發送 LINE/系統訊息
+        if (typeof sendSelfMessage === "function") {
+            sendSelfMessage({
+                userName: window.userName,
+                status: status,
+                date: apiData.date,
+                time: apiData.time,
+                networkStatus: networkStatusStr
+            }).catch(err => console.error("背景發送訊息失敗:", err));
+        }
 
         if (isCompany) {
             Swal.fire({
@@ -579,8 +586,10 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
     }
 
-    // 更新紀錄
-    updateTodayRecords();
+    // 安全觸發紀錄更新，沒定義則不執行，避免拋出未捕捉錯誤
+    if (typeof updateTodayRecords === "function") {
+        updateTodayRecords();
+    }
 }
 
 /* ===== 優化後的打卡後發送 Flex Message 給自己 ===== */
