@@ -309,6 +309,10 @@ button:not(:disabled):active {
     padding: 10px 24px !important;
     box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3) !important;
 }
+/* 倒數動畫 */
+#countdownWrapper { width:120px; height:120px; position:relative; display:none; }
+#circleProgress { fill:none; stroke-width:12; stroke-linecap:round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+#countdownText { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-weight:bold; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -341,14 +345,13 @@ button:not(:disabled):active {
       <button id="btnEnd" disabled>下班</button>
     </div>
   </div>
-<!-- 圓形倒數動畫遮罩/容器（全螢幕置中） -->
-<div id="countdownWrapper" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.85); z-index:9999; flex-direction:column; justify-content:center; align-items:center;">
-    <svg width="140" height="140">
-        <circle cx="70" cy="70" r="60" stroke="#eee" stroke-width="10" fill="none"></circle>
-        <circle id="circleProgress" cx="70" cy="70" r="60" stroke="#3498db" stroke-width="10" fill="none" transform="rotate(-90 70 70)"></circle>
-    </svg>
-    <div id="countdownText" style="font-weight:bold; margin-top:-85px; margin-bottom:50px; color:#2c3e50; font-size:15px;">打卡中...</div>
-</div>
+<!-- 倒數動畫 -->
+    <div id="countdownWrapper">
+        <svg width="120" height="120">
+            <circle id="circleProgress" cx="60" cy="60" r="50"></circle>
+        </svg>
+        <div id="countdownText">打卡中...</div>
+    </div>
 
   <!-- 今日紀錄卡片 -->
   <div class="section-container">
