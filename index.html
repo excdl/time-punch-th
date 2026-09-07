@@ -635,7 +635,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         let progress = 0;
 
         function animate() {
-            progress = Math.min(progress + 0.005, 1);
+            progress = Math.min(progress + 0.001, 1);
             circle.style.strokeDashoffset = circumference * (1 - progress);
 
             const rC = Math.round(startColor.r * (1 - progress) + endColor.r * progress);
@@ -651,7 +651,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
                 setTimeout(() => {
                     wrapper.style.display = "none";
                     wrapper.style.opacity = 1;
-                }, 600);
+                }, 300);
             }
         }
         requestAnimationFrame(animate);
