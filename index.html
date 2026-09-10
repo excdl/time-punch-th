@@ -595,6 +595,7 @@ async function sendSelfMessage(record) {
 }
 
 // ===== 打卡函式 =====
+// ===== 打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady) {
         Swal.fire({ 
@@ -610,12 +611,18 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
 
     const ip = await getIP();
 
-    // ===== 1. 改用程式一的倒數圓環動畫 UI =====
+    // ===== 1. 啟動轉圈動畫 (包裝成 Promise 確保動畫時序) =====
     const wrapper = document.getElementById("countdownWrapper");
     const circle = document.getElementById("circleProgress");
     const text = document.getElementById("countdownText");
     
-    if (wrapper && circle && text) {
+    let stopAnimation = null;
+    const animationPromise = new Promise((resolve) => {
+        if (!wrapper || !circle || !text) {
+            resolve(); // 若無動畫元件則直接跳過
+            return;
+        }
+
         wrapper.style.display = "flex";
         wrapper.style.opacity = 1;
         text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
@@ -633,6 +640,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         circle.style.strokeDashoffset = circumference;
 
         let progress = 0;
+        let animationFrameId;
 
         function animate() {
             progress = Math.min(progress + 0.008, 1);
@@ -644,38 +652,55 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             circle.style.stroke = `rgb(${rC},${gC},${bC})`;
 
             if (progress < 1) {
-                requestAnimationFrame(animate);
+                animationFrameId = requestAnimationFrame(animate);
             } else {
-                wrapper.style.transition = "opacity 0.6s";
-                wrapper.style.opacity = 0;
-                setTimeout(() => {
-                    wrapper.style.display = "none";
-                    wrapper.style.opacity = 1;
-                }, 300);
+                resolve(); // 動畫完整跑完一圈
             }
         }
-        requestAnimationFrame(animate);
+        
+        animationFrameId = requestAnimationFrame(animate);
+
+        // 外部強制收尾函式（若 API 太慢，動畫跑完一圈後可保持滿圓等待 API；若 API 快，等 API 完後呼叫此函式收尾）
+        stopAnimation = () => {
+            cancelAnimationFrame(animationFrameId);
+            progress = 1;
+            circle.style.strokeDashoffset = 0;
+            resolve();
+        };
+    });
+
+    // ===== 2. 同步發送 API =====
+    const apiPromise = (async () => {
+        try {
+            const res = await fetch(API_ENDPOINT, {
+                method: "POST",
+                body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, customDate, customTime, isMakeup })
+            });
+            return await res.json();
+        } catch(err) {
+            console.error(err);
+            return { message: "失敗" };
+        }
+    })();
+
+    // ===== 3. 等待「動畫至少跑完」與「API 回傳」兩者皆完成 =====
+    const [_, apiData] = await Promise.all([animationPromise, apiPromise]);
+
+    // 關閉轉圈動畫 UI（加入淡出效果）
+    if (wrapper) {
+        wrapper.style.transition = "opacity 0.4s";
+        wrapper.style.opacity = 0;
+        setTimeout(() => {
+            wrapper.style.display = "none";
+            wrapper.style.opacity = 1;
+        }, 400);
     }
 
-    // ===== 2. 發送 API =====
-    let apiData = null;
-    try {
-        const res = await fetch(API_ENDPOINT, {
-            method: "POST",
-            body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, customDate, customTime, isMakeup })
-        });
-        apiData = await res.json();
-    } catch(err) {
-        console.error(err);
-        apiData = { message:"失敗" };
-    }
-
-    // ===== 3. API 回傳後處理 =====
+    // ===== 4. API 回傳後處理與彈跳視窗 =====
     if (apiData.message && apiData.message.includes("成功")) {
         const isCompany = COMPANY_IPS.includes(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
         
-        // 關鍵修改：不使用 await，讓訊息在背景發送，避免卡住彈窗與頁面
         sendSelfMessage({
             userName: window.userName,
             status: status,
