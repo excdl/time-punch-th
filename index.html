@@ -364,6 +364,7 @@ const COMPANY_IPS = [
     "114.34.203.176"
 ];
 
+
 const MANAGERS = [
     "U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"
 ];
@@ -548,8 +549,22 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ====== 顯示「打卡中」彈窗 ======
-function showClockLoading(status, isMakeup) {
+// ===== 打卡函式 =====
+async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
+    if (!window.userReady) {
+        Swal.fire({ 
+            icon: "info", 
+            title: "請稍候", 
+            html: "使用者資料尚未載入", 
+            timer: 1500, 
+            showConfirmButton: false,
+            customClass: { popup: 'custom-swal-popup' }
+        });
+        return;
+    }
+
+    const ip = await getIP();
+
     Swal.fire({
         title: isMakeup ? "補打卡中..." : `${status}打卡中...`,
         html: `
@@ -570,26 +585,6 @@ function showClockLoading(status, isMakeup) {
         backdrop: "rgba(0,0,0,0.45)",
         customClass: { popup: "custom-swal-popup" }
     });
-}
-
-// ===== 打卡函式 =====
-async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
-    if (!window.userReady) {
-        Swal.fire({ 
-            icon: "info", 
-            title: "請稍候", 
-            html: "使用者資料尚未載入", 
-            timer: 1500, 
-            showConfirmButton: false,
-            customClass: { popup: 'custom-swal-popup' }
-        });
-        return;
-    }
-
-    const ip = await getIP();
-
-    // 呼叫新版打卡中載入動畫
-    showClockLoading(status, isMakeup);
 
     let apiData = null;
     try {
