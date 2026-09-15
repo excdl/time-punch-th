@@ -390,7 +390,7 @@ button:not(:disabled):active {
  
 <script>
 // ===== 設定 =====
-const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbxqTIqCeXexv6WqS4I-xaCjxI2_YxtyJCZAUFBliWUBGkqeD0MF_OEiIr74_8YY_MIP/exec";
+const API_ENDPOINT = "https://script.google.com/macros/s/AKfycby-K_9L1GGnzPviZAZ4QfQrS7rj-5b4ZZydmqoSfpX1072dKyVkh-BdvftoNRHHsn8/exec";
 const COMPANY_IPS  = ["220.132.124.179", "125.228.248.110", "114.34.128.159", "220.134.230.241", "27.240.177.116", "114.32.2.171","114.34.203.176"];
 
 const MANAGERS = [
@@ -726,10 +726,13 @@ document.getElementById("btnApprove").onclick = () => {
     window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
 
-// ===== 初始化 =====
+// ===== 初始化 (優化：改為 Promise.all 同時載入) =====
 window.onload = async () => {
-    await updateUserInfo();
-    await updateTodayRecords();
+    // 同時執行使用者資訊初始化與取得今日打卡紀錄，大幅縮短等待時間
+    await Promise.all([
+        updateUserInfo(),
+        updateTodayRecords()
+    ]);
 };
 </script>
 
