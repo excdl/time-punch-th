@@ -649,6 +649,10 @@ document.getElementById("btnApprove").onclick = () => {
 
 // ===== 初始化 =====
 window.onload = async () => {
+    // 1. 先偷偷發送一個 ping 請求來預熱 GAS 伺服器（解決冷啟動延遲）
+    fetch(`${API_ENDPOINT}?action=ping`).catch(() => {});
+
+    // 2. 接著執行原本的載入邏輯
     await updateUserInfo();
     await updateTodayRecords();
 };
