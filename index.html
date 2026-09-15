@@ -594,7 +594,7 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 打卡函式 =====
+// ===== 打卡函式（含防重複鎖定與即時紀錄預覽優化） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady) {
         Swal.fire({ 
@@ -608,9 +608,13 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         return;
     }
 
+    // 🔒 1. 點擊瞬間立即鎖定按鈕，防止網速慢時使用者重複點擊
+    btnStart.disabled = true;
+    btnEnd.disabled = true;
+
     const ip = await getIP();
 
-    // ===== 1. 改用程式一的倒數圓環動畫 UI =====
+    // ===== 2. 圓環動畫 UI 處理 =====
     const wrapper = document.getElementById("countdownWrapper");
     const circle = document.getElementById("circleProgress");
     const text = document.getElementById("countdownText");
@@ -657,7 +661,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         requestAnimationFrame(animate);
     }
 
-    // ===== 2. 發送 API =====
+    // ===== 3. 發送 API =====
     let apiData = null;
     try {
         const res = await fetch(API_ENDPOINT, {
@@ -670,12 +674,12 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         apiData = { message:"失敗" };
     }
 
-    // ===== 3. API 回傳後處理 =====
+    // ===== 4. API 回傳後處理 =====
     if (apiData.message && apiData.message.includes("成功")) {
         const isCompany = COMPANY_IPS.includes(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
         
-        // 關鍵修改：不使用 await，讓訊息在背景發送，避免卡住彈窗與頁面
+        // 背景發送 LINE 訊息
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -684,6 +688,28 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             networkStatus: networkStatusStr
         }).catch(err => console.error("背景發送訊息失敗:", err));
 
+        // 💡 畫面即時預覽：在彈出提示前，立刻將這筆最新紀錄插入畫面，讓使用者秒見打卡結果
+        const color = status === "下班" ? "#2ecc71" : "#3498db";
+        const networkColor = isCompany ? "#7f8c8d" : "#e67e22";
+        const makeupBadge = isMakeup ? `<span class="badge-makeup">待審核</span>` : "";
+        
+        const newRecordHTML = `
+            <div class="record-item" style="border-left-color: ${color}; animation: bounce 0.4s ease;">
+              <div class="record-info">
+                <div class="record-status">${status} ${makeupBadge}</div>
+                <div class="record-details" style="color: ${networkColor};">${networkStatusStr}</div>
+              </div>
+              <div class="record-time" style="color: ${color};">${apiData.time}</div>
+            </div>
+        `;
+
+        if (todayRecords.innerHTML.includes("今日尚無打卡紀錄") || todayRecords.innerHTML.includes("正在載入紀錄")) {
+            todayRecords.innerHTML = newRecordHTML;
+        } else {
+            todayRecords.innerHTML += newRecordHTML;
+        }
+
+        // 彈出成功提示
         if (isCompany) {
             Swal.fire({
                 icon: "success",
@@ -715,7 +741,12 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
     }
 
-    updateTodayRecords();
+    // 向後端完整同步最新紀錄
+    await updateTodayRecords();
+
+    // 🔓 5. 整個打卡流程結束後，恢復按鈕可用狀態
+    btnStart.disabled = false;
+    btnEnd.disabled = false;
 }
 
 // ===== 按鈕事件 =====
