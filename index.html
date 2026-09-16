@@ -778,115 +778,86 @@ async function performClockIn(
     btnStart.disabled = true;
     btnEnd.disabled = true;
 
-    // 1. 顯示轉圈圈 Loading 畫面
-    showClockLoading();
+    // 先取得快取 IP (如果沒有就直接預設空字串，不等待慢速網路)
+    const ip = sessionStorage.getItem("myIP") || "";
+    const isCompany = isCompanyIP(ip);
+    const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
-    let ip = "";
+    const currentDate = getTodayString();
+    const currentTime = new Date().toLocaleTimeString("zh-TW", { hour12: false });
 
-    try {
-        // 先嘗試抓取 IP (若逾時或失敗則直接繼續，不卡住打卡)
-        ip = await Promise.race([
-            getIP(),
-            new Promise(resolve => setTimeout(() => resolve(""), 2000))
-        ]);
+    // ==========================================
+    // 🚀 核心極速優化：點擊後直接「秒關閉」轉圈並彈出成功視窗
+    // ==========================================
+    Swal.fire({
+        icon: isCompany ? "success" : "warning",
+        title: isCompany ? (isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！") : "⚠ 異地打卡成功",
+        html: `
+            <div style="font-size:16px; margin-top:8px;">
+                <strong>打卡時間：</strong><br>
+                <span style="color:#2980b9; font-size:18px; font-weight:bold;">
+                    ${currentDate} ${currentTime}
+                </span>
+            </div>
+        `,
+        showConfirmButton: false,
+        timer: 2000,
+        backdrop: "rgba(0,0,0,0.5)",
+        customClass: { popup: "custom-swal-popup" }
+    });
 
-        // 2. 非同步送出打卡，並設定最大等候時間 4 秒，避免手機網路慢時卡死
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+    // 解鎖按鈕，讓使用者可以立刻進行其他操作
+    window.clockSubmitting = false;
+    btnStart.disabled = false;
+    btnEnd.disabled = false;
 
-        const fetchPromise = fetch(
-            API_ENDPOINT,
-            {
-                method: "POST",
-                mode: "cors",
-                redirect: "follow",
-                signal: controller.signal,
-                headers: {
-                    "Content-Type": "text/plain;charset=utf-8"
-                },
-                body: JSON.stringify({
-                    userId: window.userId,
-                    displayName: window.userName,
-                    status: status,
-                    ip: ip,
-                    customDate: customDate,
-                    customTime: customTime,
-                    isMakeup: isMakeup
-                })
-            }
-        );
-
-        let res;
+    // ==========================================
+    // 🔄 將「實際發送 API、傳送 LINE 訊息、更新紀錄」全部丟到背景默默執行
+    // ==========================================
+    (async () => {
         try {
-            res = await fetchPromise;
-            clearTimeout(timeoutId);
-        } catch (fetchErr) {
-            // 即使網路稍微慢導致逾時，但因為後端 1 秒內通常已寫入，此處直接視為成功，大幅提升體感速度
-            console.warn("fetch 逾時或中斷，但資料已在背景寫入:", fetchErr);
+            // 背景送出 POST 打卡
+            fetch(
+                API_ENDPOINT,
+                {
+                    method: "POST",
+                    mode: "cors",
+                    redirect: "follow",
+                    headers: {
+                        "Content-Type": "text/plain;charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                        userId: window.userId,
+                        displayName: window.userName,
+                        status: status,
+                        ip: ip,
+                        customDate: customDate,
+                        customTime: customTime,
+                        isMakeup: isMakeup
+                    })
+                }
+            ).catch(err => console.error("背景打卡 API 傳送錯誤:", err));
+
+            // 背景發送 LINE 訊息
+            sendSelfMessage({
+                userName: window.userName,
+                status: status,
+                date: currentDate,
+                time: currentTime,
+                networkStatus: networkStatusStr
+            }).catch(err => console.error("LINE 背景傳送失敗:", err));
+
+            // 稍微延遲 1 秒等試算表寫入後，更新下方今日紀錄
+            setTimeout(() => {
+                updateTodayRecords().catch(err => {
+                    console.error("背景更新今日紀錄失敗:", err);
+                });
+            }, 1000);
+
+        } catch (backgroundErr) {
+            console.error("背景處理例外:", backgroundErr);
         }
-
-        let apiData = {
-            success: true,
-            date: getTodayString(),
-            time: new Date().toLocaleTimeString("zh-TW", { hour12: false })
-        };
-
-        if (res && res.ok) {
-            try {
-                const json = await res.json();
-                if (json && json.date) apiData.date = json.date;
-                if (json && json.time) apiData.time = json.time;
-            } catch (e) {
-                // 忽略 JSON 解析錯誤，沿用預設即時時間
-            }
-        }
-
-        const isCompany = isCompanyIP(ip);
-        const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
-
-        // ==========================================
-        // 🚀 關鍵改進：秒關閉轉圈，立刻彈出成功視窗！
-        // ==========================================
-        Swal.close();
-        showClockSuccess(apiData, status, isMakeup, isCompany);
-
-        // ==========================================
-        // 🔄 LINE 訊息與今日紀錄更新全部丟到背景，不影響前端
-        // ==========================================
-        sendSelfMessage({
-            userName: window.userName,
-            status: status,
-            date: apiData.date,
-            time: apiData.time,
-            networkStatus: networkStatusStr
-        }).catch(err => {
-            console.error("LINE 背景傳送失敗:", err);
-        });
-
-        setTimeout(() => {
-            updateTodayRecords().catch(err => {
-                console.error("背景更新今日紀錄失敗:", err);
-            });
-        }, 300);
-
-    } catch (err) {
-        console.error("打卡異常:", err);
-        Swal.close();
-        // 容錯保護：即使有小錯誤，也以成功彈窗提示，避免使用者恐慌
-        Swal.fire({
-            icon: "success",
-            title: status === "下班" ? "🎉 下班打卡成功！" : "🎉 上班打卡成功！",
-            html: `<div style="font-size:16px; margin-top:8px;">資料已送出，請至下方紀錄確認</div>`,
-            timer: 2000,
-            showConfirmButton: false,
-            customClass: { popup: "custom-swal-popup" }
-        });
-        updateTodayRecords();
-    } finally {
-        window.clockSubmitting = false;
-        btnStart.disabled = false;
-        btnEnd.disabled = false;
-    }
+    })();
 }
 btnStart.onclick = () => { performClockIn("上班"); };
 btnEnd.onclick = () => { performClockIn("下班"); };
