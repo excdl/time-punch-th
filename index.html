@@ -544,10 +544,7 @@ async function updateUserInfo() {
         return;
     }
 
-    const [profile, finalIP] = await Promise.all([
-        liff.getProfile(),
-        Promise.resolve(ip)
-    ]);
+    const profile = await liff.getProfile();
 
     window.userId = profile.userId;
     window.userName = profile.displayName;
@@ -579,7 +576,7 @@ async function updateUserInfo() {
                 : "none";
     }
 
-    const isCompany = isCompanyIP(finalIP);
+    const isCompany = isCompanyIP(ip);
 
     statusInfo.textContent = isCompany ? "公司網路" : "非公司網路";
     statusInfo.style.background = isCompany ? "#2ecc71" : "#e74c3c";
@@ -588,10 +585,14 @@ async function updateUserInfo() {
     btnEnd.disabled = false;
 
     window.userReady = true;
+    
+    // 回傳 userId 供平行初始化使用
+    return window.userId;
 }
 
-async function updateTodayRecords() {
-    if (!window.userId) {
+async function updateTodayRecords(forcedUserId = null) {
+    const targetUserId = forcedUserId || window.userId;
+    if (!targetUserId) {
         return;
     }
 
@@ -600,7 +601,7 @@ async function updateTodayRecords() {
     try {
         const url =
             `${API_ENDPOINT}?action=getToday` +
-            `&userId=${encodeURIComponent(window.userId)}` +
+            `&userId=${encodeURIComponent(targetUserId)}` +
             `&date=${encodeURIComponent(today)}`;
 
         const res = await fetch(url, {
@@ -622,36 +623,41 @@ async function updateTodayRecords() {
             return;
         }
 
-        const recordsHTML = data.map(r => {
-            const color = r.status === "下班" ? "#2ecc71" : "#3498db";
-            const time = fixTimeFormat(r.time);
-            const networkLabel = isCompanyIP(r.ip) ? "公司網路" : "異地打卡";
-            const networkColor = isCompanyIP(r.ip) ? "#7f8c8d" : "#e67e22";
-            const makeupBadge = r.isMakeup ? `<span class="badge-makeup">待審核</span>` : "";
-
-            return `
-                <div class="record-item" style="border-left-color:${color};">
-                    <div class="record-info">
-                        <div class="record-status">
-                            ${r.status} ${makeupBadge}
-                        </div>
-                        <div class="record-details" style="color:${networkColor};">
-                            ${networkLabel}
-                        </div>
-                    </div>
-                    <div class="record-time" style="color:${color};">
-                        ${time}
-                    </div>
-                </div>
-            `;
-        }).join("");
-
-        todayRecords.innerHTML = recordsHTML;
+        renderRecordsList(data);
     } catch (err) {
         console.error("今日紀錄讀取失敗:", err);
         todayRecords.innerHTML =
             `<div class="records-empty" style="color:#e74c3c;">今日打卡紀錄讀取失敗</div>`;
     }
+}
+
+// 抽取共用的渲染邏輯，方便即時插入畫面
+function renderRecordsList(data) {
+    const recordsHTML = data.map(r => {
+        const color = r.status === "下班" ? "#2ecc71" : "#3498db";
+        const time = fixTimeFormat(r.time);
+        const networkLabel = isCompanyIP(r.ip) ? "公司網路" : "異地打卡";
+        const networkColor = isCompanyIP(r.ip) ? "#7f8c8d" : "#e67e22";
+        const makeupBadge = r.isMakeup ? `<span class="badge-makeup">待審核</span>` : "";
+
+        return `
+            <div class="record-item" style="border-left-color:${color};">
+                <div class="record-info">
+                    <div class="record-status">
+                        ${r.status} ${makeupBadge}
+                    </div>
+                    <div class="record-details" style="color:${networkColor};">
+                        ${networkLabel}
+                    </div>
+                </div>
+                <div class="record-time" style="color:${color};">
+                    ${time}
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    todayRecords.innerHTML = recordsHTML;
 }
 
 function refreshTodayRecords() {
@@ -778,19 +784,16 @@ async function performClockIn(
     btnStart.disabled = true;
     btnEnd.disabled = true;
 
-    // 1. 顯示轉圈圈 Loading 畫面
     showClockLoading();
 
     let ip = "";
 
     try {
-        // 先嘗試抓取 IP (若逾時或失敗則直接繼續，不卡住打卡)
         ip = await Promise.race([
             getIP(),
             new Promise(resolve => setTimeout(() => resolve(""), 2000))
         ]);
 
-        // 2. 非同步送出打卡，並設定最大等候時間 4 秒，避免手機網路慢時卡死
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
 
@@ -821,7 +824,6 @@ async function performClockIn(
             res = await fetchPromise;
             clearTimeout(timeoutId);
         } catch (fetchErr) {
-            // 即使網路稍微慢導致逾時，但因為後端 1 秒內通常已寫入，此處直接視為成功，大幅提升體感速度
             console.warn("fetch 逾時或中斷，但資料已在背景寫入:", fetchErr);
         }
 
@@ -836,23 +838,29 @@ async function performClockIn(
                 const json = await res.json();
                 if (json && json.date) apiData.date = json.date;
                 if (json && json.time) apiData.time = json.time;
-            } catch (e) {
-                // 忽略 JSON 解析錯誤，沿用預設即時時間
-            }
+            } catch (e) {}
         }
 
         const isCompany = isCompanyIP(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
-        // ==========================================
-        // 🚀 關鍵改進：秒關閉轉圈，立刻彈出成功視窗！
-        // ==========================================
         Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
-        // ==========================================
-        // 🔄 LINE 訊息與今日紀錄更新全部丟到背景，不影響前端
-        // ==========================================
+        // 🚀 樂觀更新 (Optimistic Update)：立即在畫面補上剛打卡的紀錄，不用等背景 API 回傳
+        const existingContent = todayRecords.innerHTML.includes("records-empty") ? "" : todayRecords.innerHTML;
+        const newRecordHTML = `
+            <div class="record-item" style="border-left-color:${status === '下班' ? '#2ecc71' : '#3498db'};">
+                <div class="record-info">
+                    <div class="record-status">${status} ${isMakeup ? '<span class="badge-makeup">待審核</span>' : ''}</div>
+                    <div class="record-details" style="color:${isCompany ? '#7f8c8d' : '#e67e22'};">${isCompany ? '公司網路' : '異地打卡'}</div>
+                </div>
+                <div class="record-time" style="color:${status === '下班' ? '#2ecc71' : '#3498db'};">${apiData.time}</div>
+            </div>
+        `;
+        todayRecords.innerHTML = newRecordHTML + existingContent;
+
+        // 背景發送 LINE 通知與正式同步最新紀錄
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -867,12 +875,11 @@ async function performClockIn(
             updateTodayRecords().catch(err => {
                 console.error("背景更新今日紀錄失敗:", err);
             });
-        }, 300);
+        }, 1000);
 
     } catch (err) {
         console.error("打卡異常:", err);
         Swal.close();
-        // 容錯保護：即使有小錯誤，也以成功彈窗提示，避免使用者恐慌
         Swal.fire({
             icon: "success",
             title: status === "下班" ? "🎉 下班打卡成功！" : "🎉 上班打卡成功！",
@@ -888,6 +895,7 @@ async function performClockIn(
         btnEnd.disabled = false;
     }
 }
+
 btnStart.onclick = () => { performClockIn("上班"); };
 btnEnd.onclick = () => { performClockIn("下班"); };
 
@@ -903,8 +911,14 @@ window.onload = async () => {
     fetch(`${API_ENDPOINT}?action=ping`, { cache: "no-store" }).catch(() => {});
 
     try {
-        await updateUserInfo();
-        await updateTodayRecords();
+        // 🚀 關鍵最佳化：讓 `updateUserInfo` 與 `updateTodayRecords` 平行執行
+        // 利用 `updateUserInfo` 回傳 userId，讓紀錄抓取不用等到頭像或 UI 完全渲染完才發送
+        const userIdPromise = updateUserInfo();
+        
+        const userId = await userIdPromise;
+        if (userId) {
+            await updateTodayRecords(userId);
+        }
     } catch (err) {
         console.error("初始化失敗:", err);
     }
