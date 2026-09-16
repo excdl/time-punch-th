@@ -807,26 +807,33 @@ async function performClockIn(
         );
 
         if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
+            throw new Error(`HTTP 狀態碼錯誤: ${res.status}`);
         }
 
         const apiData = await res.json();
 
-        if (!apiData.message || !apiData.message.includes("成功")) {
-            throw new Error(apiData.message || "打卡失敗");
+        // 💡 優化判定：優先檢查 success 欄位，若無則檢查訊息是否包含成功
+        const isSuccess = apiData.success === true || 
+                          (apiData.message && (apiData.message.includes("成功") || apiData.message.includes("打卡")));
+
+        if (!isSuccess) {
+            throw new Error(apiData.message || "伺服器回傳打卡失敗");
         }
 
         const isCompany = isCompanyIP(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
+        // 確保強制關閉 Loading 視窗
         Swal.close();
+        
+        // 彈出成功或非公司網路提示
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
         sendSelfMessage({
             userName: window.userName,
             status: status,
-            date: apiData.date,
-            time: apiData.time,
+            date: apiData.date || getTodayString(),
+            time: apiData.time || new Date().toLocaleTimeString("zh-TW", { hour12: false }),
             networkStatus: networkStatusStr
         }).catch(err => {
             console.error("LINE 背景傳送失敗:", err);
@@ -835,9 +842,10 @@ async function performClockIn(
         updateTodayRecords().catch(err => {
             console.error("背景更新今日紀錄失敗:", err);
         });
+
     } catch (err) {
         console.error("打卡失敗:", err);
-        Swal.close();
+        Swal.close(); // 確保錯誤時也關閉轉圈圈
         Swal.fire({
             icon: "error",
             title: "打卡失敗",
@@ -851,7 +859,6 @@ async function performClockIn(
         btnEnd.disabled = false;
     }
 }
-
 btnStart.onclick = () => { performClockIn("上班"); };
 btnEnd.onclick = () => { performClockIn("下班"); };
 
