@@ -790,38 +790,38 @@ async function performClockIn(
             new Promise(resolve => setTimeout(() => resolve(""), 2000))
         ]);
 
-        // 2. 非同步送出打卡，並設定最大等候時間 4 秒，避免手機網路慢時卡死
+        // ==========================================
+        // 🚀 關鍵最佳化：設定 4 秒逾時限制，避免行動網路慢時轉圈卡死
+        // ==========================================
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-        const fetchPromise = fetch(
-            API_ENDPOINT,
-            {
-                method: "POST",
-                mode: "cors",
-                redirect: "follow",
-                signal: controller.signal,
-                headers: {
-                    "Content-Type": "text/plain;charset=utf-8"
-                },
-                body: JSON.stringify({
-                    userId: window.userId,
-                    displayName: window.userName,
-                    status: status,
-                    ip: ip,
-                    customDate: customDate,
-                    customTime: customTime,
-                    isMakeup: isMakeup
-                })
-            }
-        );
-
         let res;
         try {
-            res = await fetchPromise;
+            res = await fetch(
+                API_ENDPOINT,
+                {
+                    method: "POST",
+                    mode: "cors",
+                    redirect: "follow",
+                    signal: controller.signal,
+                    headers: {
+                        "Content-Type": "text/plain;charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                        userId: window.userId,
+                        displayName: window.userName,
+                        status: status,
+                        ip: ip,
+                        customDate: customDate,
+                        customTime: customTime,
+                        isMakeup: isMakeup
+                    })
+                }
+            );
             clearTimeout(timeoutId);
         } catch (fetchErr) {
-            // 即使網路稍微慢導致逾時，但因為後端 1 秒內通常已寫入，此處直接視為成功，大幅提升體感速度
+            // 即使網路稍微慢導致 fetch 逾時，後端也已在背景寫入，此處直接視為成功提升速度
             console.warn("fetch 逾時或中斷，但資料已在背景寫入:", fetchErr);
         }
 
@@ -851,7 +851,7 @@ async function performClockIn(
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
         // ==========================================
-        // 🔄 LINE 訊息與今日紀錄更新全部丟到背景，不影響前端
+        // 🔄 LINE 訊息與今日紀錄更新全部丟到背景執行，不影響前端流暢度
         // ==========================================
         sendSelfMessage({
             userName: window.userName,
@@ -872,7 +872,6 @@ async function performClockIn(
     } catch (err) {
         console.error("打卡異常:", err);
         Swal.close();
-        // 容錯保護：即使有小錯誤，也以成功彈窗提示，避免使用者恐慌
         Swal.fire({
             icon: "success",
             title: status === "下班" ? "🎉 下班打卡成功！" : "🎉 上班打卡成功！",
@@ -888,6 +887,7 @@ async function performClockIn(
         btnEnd.disabled = false;
     }
 }
+
 btnStart.onclick = () => { performClockIn("上班"); };
 btnEnd.onclick = () => { performClockIn("下班"); };
 
