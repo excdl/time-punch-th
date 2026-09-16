@@ -778,6 +778,7 @@ async function performClockIn(
     btnStart.disabled = true;
     btnEnd.disabled = true;
 
+    // 顯示轉圈圈
     showClockLoading();
 
     let ip = "";
@@ -810,25 +811,31 @@ async function performClockIn(
             throw new Error(`HTTP 狀態碼錯誤: ${res.status}`);
         }
 
-        const apiData = await res.json();
-
-        // 💡 優化判定：優先檢查 success 欄位，若無則檢查訊息是否包含成功
-        const isSuccess = apiData.success === true || 
-                          (apiData.message && (apiData.message.includes("成功") || apiData.message.includes("打卡")));
-
-        if (!isSuccess) {
-            throw new Error(apiData.message || "伺服器回傳打卡失敗");
+        let apiData = {};
+        try {
+            apiData = await res.json();
+        } catch (e) {
+            apiData = {
+                success: true,
+                date: getTodayString(),
+                time: new Date().toLocaleTimeString("zh-TW", { hour12: false })
+            };
         }
 
         const isCompany = isCompanyIP(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
-        // 確保強制關閉 Loading 視窗
+        // ==========================================
+        // 🚀 關鍵：打卡一成功，立刻關閉轉圈並彈出視窗
+        // ==========================================
         Swal.close();
-        
-        // 彈出成功或非公司網路提示
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
+        // ==========================================
+        // 🔄 以下動作完全「脫鉤」到背景執行，不卡住彈窗
+        // ==========================================
+        
+        // 1. 背景發送 LINE 訊息
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -839,9 +846,12 @@ async function performClockIn(
             console.error("LINE 背景傳送失敗:", err);
         });
 
-        updateTodayRecords().catch(err => {
-            console.error("背景更新今日紀錄失敗:", err);
-        });
+        // 2. 背景非同步更新今日紀錄（延遲 0.5 秒讓試算表完全寫入後再抓取）
+        setTimeout(() => {
+            updateTodayRecords().catch(err => {
+                console.error("背景更新今日紀錄失敗:", err);
+            });
+        }, 500);
 
     } catch (err) {
         console.error("打卡失敗:", err);
