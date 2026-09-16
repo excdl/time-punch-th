@@ -778,7 +778,7 @@ async function performClockIn(
     btnStart.disabled = true;
     btnEnd.disabled = true;
 
-    // 顯示轉圈圈
+    // 顯示轉圈圈 Loading 畫面
     showClockLoading();
 
     let ip = "";
@@ -815,6 +815,7 @@ async function performClockIn(
         try {
             apiData = await res.json();
         } catch (e) {
+            // 若 JSON 解析因重新導向受阻，自動帶入當下時間視為成功
             apiData = {
                 success: true,
                 date: getTodayString(),
@@ -826,16 +827,16 @@ async function performClockIn(
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
         // ==========================================
-        // 🚀 關鍵：打卡一成功，立刻關閉轉圈並彈出視窗
+        // 🚀 關鍵改善：資料一寫入後立刻強制關閉轉圈，並彈出成功視窗
         // ==========================================
         Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
         // ==========================================
-        // 🔄 以下動作完全「脫鉤」到背景執行，不卡住彈窗
+        // 🔄 以下動作完全「脫鉤」到背景執行，不再卡住打卡視窗
         // ==========================================
-        
-        // 1. 背景發送 LINE 訊息
+
+        // 1. 背景非同步發送 LINE 訊息
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -846,7 +847,7 @@ async function performClockIn(
             console.error("LINE 背景傳送失敗:", err);
         });
 
-        // 2. 背景非同步更新今日紀錄（延遲 0.5 秒讓試算表完全寫入後再抓取）
+        // 2. 延遲 0.5 秒後在背景安靜更新今日紀錄，不影響前端彈窗
         setTimeout(() => {
             updateTodayRecords().catch(err => {
                 console.error("背景更新今日紀錄失敗:", err);
@@ -855,7 +856,7 @@ async function performClockIn(
 
     } catch (err) {
         console.error("打卡失敗:", err);
-        Swal.close(); // 確保錯誤時也關閉轉圈圈
+        Swal.close(); // 確保發生錯誤時也能強制關閉轉圈
         Swal.fire({
             icon: "error",
             title: "打卡失敗",
