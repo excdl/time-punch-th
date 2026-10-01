@@ -792,7 +792,7 @@ async function performClockIn(
 
         // 2. 非同步送出打卡，並設定最大等候時間 4 秒，避免手機網路慢時卡死
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         const fetchPromise = fetch(
             API_ENDPOINT,
