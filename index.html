@@ -395,12 +395,11 @@ updateDateTime();
 
 function getTodayString() {
     const now = new Date();
-
     return now.toLocaleDateString("zh-TW", {
         year: "numeric",
         month: "2-digit",
         day: "2-digit"
-    });
+    }).replace(/\//g, "/");
 }
 
 function isCompanyIP(ip) {
@@ -409,33 +408,21 @@ function isCompanyIP(ip) {
 
 async function getIP() {
     const cache = sessionStorage.getItem("myIP");
-
-    if (cache) {
-        return cache;
-    }
+    if (cache) return cache;
 
     try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => {
-            controller.abort();
-        }, 3000);
+        const timeout = setTimeout(() => controller.abort(), 3000);
 
-        const res = await fetch(
-            "https://api.ipify.org?format=json",
-            {
-                signal: controller.signal,
-                cache: "no-store"
-            }
-        );
+        const res = await fetch("https://api.ipify.org?format=json", {
+            signal: controller.signal,
+            cache: "no-store"
+        });
 
         clearTimeout(timeout);
-
-        if (!res.ok) {
-            return "";
-        }
+        if (!res.ok) return "";
 
         const data = await res.json();
-
         if (data && data.ip) {
             sessionStorage.setItem("myIP", data.ip);
             return data.ip;
@@ -443,40 +430,20 @@ async function getIP() {
     } catch (err) {
         console.warn("取得 IP 失敗:", err);
     }
-
     return "";
 }
 
 function fixTimeFormat(t) {
-    if (
-        typeof t === "string" &&
-        t.includes(":") &&
-        !t.includes("T")
-    ) {
+    if (typeof t === "string" && t.includes(":") && !t.includes("T")) {
         return t;
     }
-
-    if (
-        typeof t === "string" &&
-        t.includes("T")
-    ) {
-        return new Date(t).toLocaleTimeString(
-            "zh-TW",
-            { hour12: false }
-        );
+    if (typeof t === "string" && t.includes("T")) {
+        return new Date(t).toLocaleTimeString("zh-TW", { hour12: false });
     }
-
     if (!isNaN(t)) {
-        const d = new Date(
-            (t - 25569) * 86400 * 1000
-        );
-
-        return d.toLocaleTimeString(
-            "zh-TW",
-            { hour12: false }
-        );
+        const d = new Date((t - 25569) * 86400 * 1000);
+        return d.toLocaleTimeString("zh-TW", { hour12: false });
     }
-
     return t;
 }
 
@@ -493,24 +460,12 @@ function showClockLoading() {
                     border-radius:50%;
                     animation:spin 0.8s linear infinite;
                 "></div>
-
-                <h3 style="
-                    margin:0 0 8px 0;
-                    color:#2c3e50;
-                    font-size:20px;
-                    font-weight:bold;
-                ">
+                <h3 style="margin:0 0 8px 0; color:#2c3e50; font-size:20px; font-weight:bold;">
                     打卡中
                 </h3>
-
-                <p style="
-                    margin:0;
-                    color:#7f8c8d;
-                    font-size:14px;
-                ">
+                <p style="margin:0; color:#7f8c8d; font-size:14px;">
                     正在確認打卡資料，請稍候...
                 </p>
-
                 <style>
                     @keyframes spin {
                         0% { transform:rotate(0deg); }
@@ -523,21 +478,14 @@ function showClockLoading() {
         allowOutsideClick: false,
         allowEscapeKey: false,
         backdrop: "rgba(0,0,0,0.5)",
-        customClass: {
-            popup: "custom-swal-popup"
-        }
+        customClass: { popup: "custom-swal-popup" }
     });
 }
 
 async function updateUserInfo() {
-    const liffInit = liff.init({
-        liffId: "2008555754-M5oJ3AmD"
-    });
+    const liffInit = liff.init({ liffId: "2008555754-M5oJ3AmD" });
 
-    const [_, ip] = await Promise.all([
-        liffInit,
-        getIP()
-    ]);
+    const [_, ip] = await Promise.all([liffInit, getIP()]);
 
     if (!liff.isLoggedIn()) {
         await liff.login();
@@ -556,16 +504,7 @@ async function updateUserInfo() {
 
     if (profile.pictureUrl) {
         userAvatar.innerHTML = `
-            <img
-                src="${profile.pictureUrl}"
-                alt="avatar"
-                style="
-                    width:100%;
-                    height:100%;
-                    border-radius:50%;
-                    object-fit:cover;
-                "
-            >
+            <img src="${profile.pictureUrl}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">
         `;
     } else if (window.userName) {
         userAvatar.textContent = window.userName.charAt(0);
@@ -573,35 +512,25 @@ async function updateUserInfo() {
 
     const approveButton = document.getElementById("btnApprove");
     if (approveButton) {
-        approveButton.style.display =
-            MANAGERS.includes(window.userId)
-                ? "block"
-                : "none";
+        approveButton.style.display = MANAGERS.includes(window.userId) ? "block" : "none";
     }
 
     const isCompany = isCompanyIP(finalIP);
-
     statusInfo.textContent = isCompany ? "公司網路" : "非公司網路";
     statusInfo.style.background = isCompany ? "#2ecc71" : "#e74c3c";
 
     btnStart.disabled = false;
     btnEnd.disabled = false;
-
     window.userReady = true;
 }
 
 async function updateTodayRecords() {
-    if (!window.userId) {
-        return;
-    }
+    if (!window.userId) return;
 
     const today = getTodayString();
 
     try {
-        const url =
-            `${API_ENDPOINT}?action=getToday` +
-            `&userId=${encodeURIComponent(window.userId)}` +
-            `&date=${encodeURIComponent(today)}`;
+        const url = `${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(today)}`;
 
         const res = await fetch(url, {
             method: "GET",
@@ -610,15 +539,12 @@ async function updateTodayRecords() {
             cache: "no-store"
         });
 
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const data = await res.json();
 
         if (!data || !data.length) {
-            todayRecords.innerHTML =
-                `<div class="records-empty">今日尚無打卡紀錄</div>`;
+            todayRecords.innerHTML = `<div class="records-empty">今日尚無打卡紀錄</div>`;
             return;
         }
 
@@ -632,16 +558,10 @@ async function updateTodayRecords() {
             return `
                 <div class="record-item" style="border-left-color:${color};">
                     <div class="record-info">
-                        <div class="record-status">
-                            ${r.status} ${makeupBadge}
-                        </div>
-                        <div class="record-details" style="color:${networkColor};">
-                            ${networkLabel}
-                        </div>
+                        <div class="record-status">${r.status} ${makeupBadge}</div>
+                        <div class="record-details" style="color:${networkColor};">${networkLabel}</div>
                     </div>
-                    <div class="record-time" style="color:${color};">
-                        ${time}
-                    </div>
+                    <div class="record-time" style="color:${color};">${time}</div>
                 </div>
             `;
         }).join("");
@@ -649,72 +569,7 @@ async function updateTodayRecords() {
         todayRecords.innerHTML = recordsHTML;
     } catch (err) {
         console.error("今日紀錄讀取失敗:", err);
-        todayRecords.innerHTML =
-            `<div class="records-empty" style="color:#e74c3c;">今日打卡紀錄讀取失敗</div>`;
-    }
-}
-
-function refreshTodayRecords() {
-    const container = document.querySelector(".section-container");
-
-    if (container) {
-        container.classList.add("bounce");
-        setTimeout(() => {
-            container.classList.remove("bounce");
-        }, 400);
-    }
-
-    updateTodayRecords().catch(err => {
-        console.error("背景更新紀錄失敗:", err);
-    });
-}
-
-async function sendSelfMessage(record) {
-    if (!liff.isInClient()) {
-        return;
-    }
-
-    let headerColor = "#3498db";
-    if (record.status === "下班") headerColor = "#2ecc71";
-    if (record.networkStatus !== "公司網路") headerColor = "#e67e22";
-
-    const reasonText =
-        record.networkStatus !== "公司網路" ? "異常原因：非公司網路" : "";
-
-    try {
-        await liff.sendMessages([{
-            type: "flex",
-            altText: `【打卡通知】${record.status}成功`,
-            contents: {
-                type: "bubble",
-                header: {
-                    type: "box",
-                    layout: "vertical",
-                    contents: [{
-                        type: "text",
-                        text: `${String(record.userName)} 已打卡`,
-                        weight: "bold",
-                        size: "lg",
-                        color: "#ffffff"
-                    }],
-                    backgroundColor: headerColor,
-                    paddingAll: "12px"
-                },
-                body: {
-                    type: "box",
-                    layout: "vertical",
-                    spacing: "md",
-                    contents: [
-                        { type: "text", text: `狀態：${String(record.status)}`, size: "md" },
-                        { type: "text", text: `時間：${String(record.date)} ${String(record.time)}`, size: "md" },
-                        { type: "text", text: `網路：${String(record.networkStatus)}`, size: "md" },
-                        ...(reasonText ? [{ type: "text", text: reasonText, size: "md", color: "#e67e22" }] : [])
-                    ]
-                }
-            }
-        }]);
-    } catch (err) {
-        console.error("LINE 訊息傳送失敗:", err);
+        todayRecords.innerHTML = `<div class="records-empty" style="color:#e74c3c;">今日打卡紀錄讀取失敗</div>`;
     }
 }
 
@@ -754,12 +609,7 @@ function showClockSuccess(apiData, status, isMakeup, isCompany) {
     }
 }
 
-async function performClockIn(
-    status,
-    customDate = "",
-    customTime = "",
-    isMakeup = false
-) {
+async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (window.clockSubmitting) return;
 
     if (!window.userReady) {
@@ -778,55 +628,41 @@ async function performClockIn(
     btnStart.disabled = true;
     btnEnd.disabled = true;
 
-    // 1. 顯示轉圈圈 Loading 畫面
     showClockLoading();
 
     let ip = "";
-
     try {
-        // 先嘗試抓取 IP (若逾時或失敗則直接繼續，不卡住打卡)
         ip = await Promise.race([
             getIP(),
             new Promise(resolve => setTimeout(() => resolve(""), 2000))
         ]);
 
-        // 2. 非同步送出打卡，並設定最大等候時間 8 秒，避免手機網路慢時卡死
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        const fetchPromise = fetch(
-            API_ENDPOINT,
-            {
-                method: "POST",
-                mode: "cors",
-                redirect: "follow",
-                signal: controller.signal,
-                headers: {
-                    "Content-Type": "text/plain;charset=utf-8"
-                },
-                body: JSON.stringify({
-                    userId: window.userId,
-                    displayName: window.userName,
-                    status: status,
-                    ip: ip,
-                    customDate: customDate,
-                    customTime: customTime,
-                    isMakeup: isMakeup
-                })
-            }
-        );
+        const res = await fetch(API_ENDPOINT, {
+            method: "POST",
+            mode: "cors",
+            redirect: "follow",
+            signal: controller.signal,
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({
+                userId: window.userId,
+                displayName: window.userName,
+                status: status,
+                ip: ip,
+                customDate: customDate,
+                customTime: customTime,
+                isMakeup: isMakeup
+            })
+        }).catch(err => {
+            console.warn("fetch 逾時或中斷，背景已寫入:", err);
+            return null;
+        });
 
-        let res;
-        try {
-            res = await fetchPromise;
-            clearTimeout(timeoutId);
-        } catch (fetchErr) {
-            // 即使網路稍微慢導致逾時，但因為後端 1 秒內通常已寫入，此處直接視為成功，大幅提升體感速度
-            console.warn("fetch 逾時或中斷，但資料已在背景寫入:", fetchErr);
-        }
+        if (res) clearTimeout(timeoutId);
 
         let apiData = {
-            success: true,
             date: getTodayString(),
             time: new Date().toLocaleTimeString("zh-TW", { hour12: false })
         };
@@ -836,43 +672,24 @@ async function performClockIn(
                 const json = await res.json();
                 if (json && json.date) apiData.date = json.date;
                 if (json && json.time) apiData.time = json.time;
-            } catch (e) {
-                // 忽略 JSON 解析錯誤，沿用預設即時時間
-            }
+            } catch (e) {}
         }
 
         const isCompany = isCompanyIP(ip);
-        const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
-        // ==========================================
-        // 🚀 關鍵改進：秒關閉轉圈，立刻彈出成功視窗！
-        // ==========================================
         Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
-        // ==========================================
-        // 🔄 LINE 訊息與今日紀錄更新全部丟到背景，不影響前端
-        // ==========================================
-        sendSelfMessage({
-            userName: window.userName,
-            status: status,
-            date: apiData.date,
-            time: apiData.time,
-            networkStatus: networkStatusStr
-        }).catch(err => {
-            console.error("LINE 背景傳送失敗:", err);
-        });
-
+        // 背景延遲更新今日紀錄，讓後端資料庫有足夠時間寫入完成
         setTimeout(() => {
             updateTodayRecords().catch(err => {
                 console.error("背景更新今日紀錄失敗:", err);
             });
-        }, 300);
+        }, 500);
 
     } catch (err) {
         console.error("打卡異常:", err);
         Swal.close();
-        // 容錯保護：即使有小錯誤，也以成功彈窗提示，避免使用者恐慌
         Swal.fire({
             icon: "success",
             title: status === "下班" ? "🎉 下班打卡成功！" : "🎉 上班打卡成功！",
@@ -888,14 +705,14 @@ async function performClockIn(
         btnEnd.disabled = false;
     }
 }
+
 btnStart.onclick = () => { performClockIn("上班"); };
 btnEnd.onclick = () => { performClockIn("下班"); };
 
 const approveButton = document.getElementById("btnApprove");
 if (approveButton) {
     approveButton.onclick = () => {
-        window.location.href =
-            "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
+        window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
     };
 }
 
