@@ -888,11 +888,20 @@ if (approveButton) {
 }
 
 window.onload = async () => {
+    // 提早發送 ping 喚醒 GAS
     fetch(`${API_ENDPOINT}?action=ping`, { cache: "no-store" }).catch(() => {});
 
     try {
+        // 1. 優先確保使用者身分與 IP 抓取完畢
         await updateUserInfo();
-        await updateTodayRecords();
+        
+        // 2. 稍微延遲或直接在背景呼叫今日紀錄，避免卡住首屏渲染
+        setTimeout(() => {
+            updateTodayRecords().catch(err => {
+                console.warn("背景載入今日紀錄:", err);
+            });
+        }, 200);
+
     } catch (err) {
         console.error("初始化失敗:", err);
     }
