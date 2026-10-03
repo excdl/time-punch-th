@@ -573,6 +573,58 @@ async function updateTodayRecords() {
     }
 }
 
+// ==========================================
+// 💡 補回原本遺失的 sendSelfMessage 函式
+// ==========================================
+async function sendSelfMessage(record) {
+    if (!liff.isInClient()) {
+        return;
+    }
+
+    let headerColor = "#3498db";
+    if (record.status === "下班") headerColor = "#2ecc71";
+    if (record.networkStatus !== "公司網路") headerColor = "#e67e22";
+
+    const reasonText =
+        record.networkStatus !== "公司網路" ? "異常原因：非公司網路" : "";
+
+    try {
+        await liff.sendMessages([{
+            type: "flex",
+            altText: `【打卡通知】${record.status}成功`,
+            contents: {
+                type: "bubble",
+                header: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [{
+                        type: "text",
+                        text: `${String(record.userName)} 已打卡`,
+                        weight: "bold",
+                        size: "lg",
+                        color: "#ffffff"
+                    }],
+                    backgroundColor: headerColor,
+                    paddingAll: "12px"
+                },
+                body: {
+                    type: "box",
+                    layout: "vertical",
+                    spacing: "md",
+                    contents: [
+                        { type: "text", text: `狀態：${String(record.status)}`, size: "md" },
+                        { type: "text", text: `時間：${String(record.date)} ${String(record.time)}`, size: "md" },
+                        { type: "text", text: `網路：${String(record.networkStatus)}`, size: "md" },
+                        ...(reasonText ? [{ type: "text", text: reasonText, size: "md", color: "#e67e22" }] : [])
+                    ]
+                }
+            }
+        }]);
+    } catch (err) {
+        console.error("LINE 訊息傳送失敗:", err);
+    }
+}
+
 function showClockSuccess(apiData, status, isMakeup, isCompany) {
     if (isCompany) {
         Swal.fire({
@@ -676,11 +728,22 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         }
 
         const isCompany = isCompanyIP(ip);
+        const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
         Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
-        // 背景延遲更新今日紀錄，讓後端資料庫有足夠時間寫入完成
+        // 呼叫背景發送 LIFF 訊息
+        sendSelfMessage({
+            userName: window.userName,
+            status: status,
+            date: apiData.date,
+            time: apiData.time,
+            networkStatus: networkStatusStr
+        }).catch(err => {
+            console.error("LINE 背景傳送失敗:", err);
+        });
+
         setTimeout(() => {
             updateTodayRecords().catch(err => {
                 console.error("背景更新今日紀錄失敗:", err);
