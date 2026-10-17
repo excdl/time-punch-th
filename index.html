@@ -436,28 +436,36 @@ function showClockLoading(status) {
                 <!-- 科技感電影院倒數視窗外框 -->
                 <div style="position:relative; width:110px; height:110px; margin:0 auto 16px auto; display:flex; align-items:center; justify-content:center;">
                     
-                    <!-- 外圈旋轉科技圓環 -->
+                    <!-- 外圈多節點旋轉環 (順時針) -->
                     <div style="
                         position:absolute; top:0; left:0; width:110px; height:110px; 
-                        border:2px dashed rgba(0, 243, 255, 0.4);
-                        border-radius:50%; animation:cinemaSpin 6s linear infinite;
+                        border:2px solid rgba(0, 243, 255, 0.15);
+                        border-top:2px solid #00f3ff;
+                        border-radius:50%; animation:techRingSpin 1.5s linear infinite;
                         box-sizing:border-box;
                     "></div>
 
-                    <!-- 內圈準星脈動發光環 -->
+                    <!-- 內圈雷達掃描與脈動光暈 (逆時針) -->
                     <div style="
-                        position:absolute; top:8px; left:8px; width:94px; height:94px; 
-                        border:3px solid #00f3ff; border-top-color:transparent;
-                        border-radius:50%; animation:cinemaPulse 1s linear infinite;
-                        box-sizing:border-box; box-shadow: 0 0 12px rgba(0,243,255,0.3);
+                        position:absolute; top:12px; left:12px; width:86px; height:86px; 
+                        border:2px dashed rgba(0, 243, 255, 0.4);
+                        border-radius:50%; animation:techRadarSpin 3s linear infinite reverse;
+                        box-sizing:border-box; box-shadow: 0 0 15px rgba(0,243,255,0.15) inset;
                     "></div>
 
-                    <!-- 核心倒數數字 (電影院風格) -->
+                    <!-- 核心科技脈動光點 -->
+                    <div style="
+                        position:absolute; top:28px; left:28px; width:54px; height:54px; 
+                        background: radial-gradient(circle, rgba(0,243,255,0.2) 0%, rgba(11,15,25,0) 70%);
+                        border-radius:50%; animation:techCorePulse 1s ease-in-out infinite alternate;
+                    "></div>
+
+                    <!-- 核心倒數數字 (科技等寬字體) -->
                     <div style="
                         position:relative; z-index:2;
-                        font-size:38px; font-weight:900; color:#00f3ff;
+                        font-size:36px; font-weight:900; color:#00f3ff;
                         font-family:'Courier New', Courier, monospace;
-                        text-shadow: 0 0 10px rgba(0,243,255,0.6);
+                        text-shadow: 0 0 12px rgba(0,243,255,0.8), 0 0 4px rgba(255,255,255,0.6);
                     ">
                         <span id="swalCountdown">${countdown}</span>
                     </div>
@@ -471,14 +479,17 @@ function showClockLoading(status) {
                 </p>
 
                 <style>
-                    @keyframes cinemaSpin { 
+                    @keyframes techRingSpin { 
                         0% { transform: rotate(0deg); } 
                         100% { transform: rotate(360deg); } 
                     }
-                    @keyframes cinemaPulse { 
-                        0% { transform: rotate(0deg); opacity: 0.8; } 
-                        50% { opacity: 0.4; } 
-                        100% { transform: rotate(360deg); opacity: 0.8; } 
+                    @keyframes techRadarSpin { 
+                        0% { transform: rotate(0deg); } 
+                        100% { transform: rotate(360deg); } 
+                    }
+                    @keyframes techCorePulse { 
+                        0% { transform: scale(0.95); opacity: 0.6; } 
+                        100% { transform: scale(1.1); opacity: 1; } 
                     }
                 </style>
             </div>
@@ -486,11 +497,10 @@ function showClockLoading(status) {
         showConfirmButton: false,
         allowOutsideClick: false,
         allowEscapeKey: false,
-        background: "#0b0f19", // 配合內文的深科技黑背景
+        background: "#0b0f19",
         backdrop: "rgba(0,0,0,0.85)",
         customClass: { popup: "custom-swal-popup" },
         didOpen: () => {
-            // 啟動倒數計時器
             window.swalTimer = setInterval(() => {
                 countdown--;
                 const el = document.getElementById("swalCountdown");
@@ -503,7 +513,6 @@ function showClockLoading(status) {
             }, 1000);
         },
         willClose: () => {
-            // 視窗關閉時清除計時器
             if (window.swalTimer) clearInterval(window.swalTimer);
         }
     });
