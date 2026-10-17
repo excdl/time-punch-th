@@ -463,12 +463,12 @@ function showClockLoading(status) {
                     </div>
                 </div>
 
-                <!-- 專業標題與狀態說明 -->
-                <h3 style="margin: 0 0 8px 0; color: #0f172a; font-size: 19px; font-weight: 600; letter-spacing: 0.3px;">
+                <!-- 狀態說明文字 -->
+                <h3 style="margin: 0 0 6px 0; color: #0f172a; font-size: 18px; font-weight: 600; letter-spacing: 0.3px;">
                     系統打卡處理中
                 </h3>
-                <p style="margin: 0 0 16px 0; color: #64748b; font-size: 13.5px; line-height: 1.5;">
-                    正在安全驗證身分並同步至差勤雲端，<br>請稍候片刻，切勿關閉頁面。
+                <p style="margin: 0 0 16px 0; color: #64748b; font-size: 13px;">
+                    請稍後片刻勿關閉視窗
                 </p>
 
                 <!-- 底部微型科技進度條視覺 -->
@@ -496,7 +496,7 @@ function showClockLoading(status) {
         showConfirmButton: false,
         allowOutsideClick: false,
         allowEscapeKey: false,
-        backdrop: "rgba(15, 23, 42, 0.65)", // 高質感深藍灰半透明遮罩
+        backdrop: "rgba(15, 23, 42, 0.65)",
         customClass: { popup: "custom-swal-popup" },
         didOpen: () => {
             window.swalTimer = setInterval(() => {
