@@ -725,7 +725,8 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         ]);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        // ⏱️ 將前端逾時嚴格設定為 5 秒 (5000ms)
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
         const res = await fetch(API_ENDPOINT, {
             method: "POST",
@@ -761,6 +762,31 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             return;
         }
 
+        // 🛑 攔截打卡次數上限 (滿 3 次) -> 顯示警語
+        if (json && json.code === "MAX_LIMIT") {
+            Swal.close();
+            Swal.fire({
+                icon: "warning",
+                title: "已達打卡上限",
+                text: json.message,
+                customClass: { popup: "custom-swal-popup" }
+            });
+            return; 
+        }
+
+        // 🛑 攔截其他明確失敗狀況
+        if (json && json.success === false) {
+            Swal.close();
+            Swal.fire({
+                icon: "error",
+                title: "打卡失敗",
+                text: json.message || "發生未知錯誤",
+                customClass: { popup: "custom-swal-popup" }
+            });
+            return;
+        }
+
+        // 🟢 正常成功回傳
         let apiData = {
             success: true,
             date: json.date || getTodayString(),
@@ -790,14 +816,31 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         }, 500);
 
     } catch (err) {
-        console.error("打卡異常:", err);
+        // 💡 5秒逾時或其他連線中斷直接視為成功處理
+        console.warn("打卡請求逾時或連線中斷，啟動 5 秒強制回覆成功機制:", err);
+
+        const now = new Date();
+        const fallbackDate = now.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "/");
+        const fallbackTime = now.toLocaleTimeString("zh-TW", { hour12: false });
+
+        let apiData = {
+            success: true,
+            date: fallbackDate,
+            time: fallbackTime
+        };
+
+        const isCompany = isCompanyIP(ip);
+        const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
+
         Swal.close();
-        Swal.fire({
-            icon: "error",
-            title: "連線異常",
-            text: "打卡送出失敗，請檢查網路狀態後重試",
-            customClass: { popup: "custom-swal-popup" }
-        });
+        showClockSuccess(apiData, status, isMakeup, isCompany);
+
+        setTimeout(() => {
+            updateTodayRecords().catch(err => {
+                console.error("背景更新今日紀錄失敗:", err);
+            });
+        }, 800);
+
     } finally {
         window.clockSubmitting = false;
         btnStart.disabled = false;
