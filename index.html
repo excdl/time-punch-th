@@ -615,8 +615,14 @@ async function updateTodayRecords() {
     }
 }
 
-async function sendSelfMessage(record) {
-    if (!liff.isInClient()) return;
+/**
+ * 💡 強化版：具備自動重試機制 (Retry 2次) 與 LINE 應用程式內檢查的發送函式
+ */
+async function sendSelfMessage(record, retries = 2) {
+    if (typeof liff === "undefined" || !liff.isInClient()) {
+        console.warn("目前不在 LINE App 內 (LIFF Client)，無法使用 liff.sendMessages() 發送通知。");
+        return false;
+    }
 
     let headerColor = "#3498db";
     if (record.status === "下班") headerColor = "#2ecc71";
@@ -656,8 +662,15 @@ async function sendSelfMessage(record) {
                 }
             }
         }]);
+        console.log("LINE 訊息發送成功");
+        return true;
     } catch (err) {
-        console.error("LINE 訊息傳送失敗:", err);
+        console.error(`LINE 訊息傳送失敗（剩餘重試次數: ${retries}）:`, err);
+        if (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return sendSelfMessage(record, retries - 1);
+        }
+        return false;
     }
 }
 
@@ -799,6 +812,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
+        // 🛡️ 背景發送 LINE 訊息（帶自動重試機制）
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -806,7 +820,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             time: apiData.time,
             networkStatus: networkStatusStr
         }).catch(err => {
-            console.error("LINE 背景傳送失敗:", err);
+            console.error("LINE 背景傳送最終失敗:", err);
         });
 
         setTimeout(() => {
@@ -816,7 +830,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         }, 500);
 
     } catch (err) {
-        // 💡 5秒逾時或其他連線中斷直接視為成功處理
+        // 💡 5秒逾時或其他連線中斷直接視為成功處理 (Fallback)
         console.warn("打卡請求逾時或連線中斷，啟動 5 秒強制回覆成功機制:", err);
 
         const now = new Date();
@@ -834,6 +848,17 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
 
         Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
+
+        // 🛡️ 逾時 Fallback 強制成功時，同步啟動重試機制發送 LINE 通知
+        sendSelfMessage({
+            userName: window.userName,
+            status: status,
+            date: apiData.date,
+            time: apiData.time,
+            networkStatus: networkStatusStr
+        }).catch(err => {
+            console.error("LINE 背景傳送（Fallback）最終失敗:", err);
+        });
 
         setTimeout(() => {
             updateTodayRecords().catch(err => {
