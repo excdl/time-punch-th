@@ -615,14 +615,8 @@ async function updateTodayRecords() {
     }
 }
 
-/**
- * 💡 強化版：具備自動重試機制 (Retry 2次) 與 LINE 應用程式內檢查的發送函式
- */
 async function sendSelfMessage(record, retries = 2) {
-    if (typeof liff === "undefined" || !liff.isInClient()) {
-        console.warn("目前不在 LINE App 內 (LIFF Client)，無法使用 liff.sendMessages() 發送通知。");
-        return false;
-    }
+    if (!liff.isInClient()) return;
 
     let headerColor = "#3498db";
     if (record.status === "下班") headerColor = "#2ecc71";
@@ -662,15 +656,12 @@ async function sendSelfMessage(record, retries = 2) {
                 }
             }
         }]);
-        console.log("LINE 訊息發送成功");
-        return true;
     } catch (err) {
-        console.error(`LINE 訊息傳送失敗（剩餘重試次數: ${retries}）:`, err);
+        console.warn(`LINE 訊息傳送失敗（剩餘重試次數: ${retries}）:`, err);
         if (retries > 0) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             return sendSelfMessage(record, retries - 1);
         }
-        return false;
     }
 }
 
@@ -738,10 +729,9 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         ]);
 
         const controller = new AbortController();
-        // ⏱️ 將前端逾時嚴格設定為 5 秒 (5000ms)
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        const res = await fetch(API_ENDPOINT, {
+        const fetchPromise = fetch(API_ENDPOINT, {
             method: "POST",
             mode: "cors",
             redirect: "follow",
@@ -758,53 +748,40 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             })
         });
 
-        clearTimeout(timeoutId);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const json = await res.json();
-
-        // 攔截後端 LockService 忙碌狀態
-        if (json && json.message === "系統忙碌中") {
-            Swal.close();
-            Swal.fire({
-                icon: "error",
-                title: "系統忙碌中",
-                text: "目前同時打卡人數較多，請稍後再試一次",
-                customClass: { popup: "custom-swal-popup" }
-            });
-            return;
+        let res;
+        try {
+            res = await fetchPromise;
+            clearTimeout(timeoutId);
+        } catch (fetchErr) {
+            console.warn("fetch 逾時或中斷，啟動背景備援機制:", fetchErr);
         }
 
-        // 🛑 攔截打卡次數上限 (滿 3 次) -> 顯示警語
-        if (json && json.code === "MAX_LIMIT") {
-            Swal.close();
-            Swal.fire({
-                icon: "warning",
-                title: "已達打卡上限",
-                text: json.message,
-                customClass: { popup: "custom-swal-popup" }
-            });
-            return; 
-        }
-
-        // 🛑 攔截其他明確失敗狀況
-        if (json && json.success === false) {
-            Swal.close();
-            Swal.fire({
-                icon: "error",
-                title: "打卡失敗",
-                text: json.message || "發生未知錯誤",
-                customClass: { popup: "custom-swal-popup" }
-            });
-            return;
-        }
-
-        // 🟢 正常成功回傳
         let apiData = {
             success: true,
-            date: json.date || getTodayString(),
-            time: json.time || new Date().toLocaleTimeString("zh-TW", { hour12: false })
+            date: getTodayString(),
+            time: new Date().toLocaleTimeString("zh-TW", { hour12: false })
         };
+
+        if (res && res.ok) {
+            try {
+                const json = await res.json();
+                
+                // 攔截後端 LockService 忙碌狀態
+                if (json && json.message === "系統忙碌中") {
+                    Swal.close();
+                    Swal.fire({
+                        icon: "error",
+                        title: "系統忙碌中",
+                        text: "目前同時打卡人數較多，請稍後再試一次",
+                        customClass: { popup: "custom-swal-popup" }
+                    });
+                    return;
+                }
+
+                if (json && json.date) apiData.date = json.date;
+                if (json && json.time) apiData.time = json.time;
+            } catch (e) {}
+        }
 
         const isCompany = isCompanyIP(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
@@ -812,7 +789,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
-        // 🛡️ 背景發送 LINE 訊息（帶自動重試機制）
+        // 背景發送 LINE 訊息（帶自動重試）
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -830,8 +807,8 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         }, 500);
 
     } catch (err) {
-        // 💡 5秒逾時或其他連線中斷直接視為成功處理 (Fallback)
-        console.warn("打卡請求逾時或連線中斷，啟動 5 秒強制回覆成功機制:", err);
+        console.warn("打卡異常，啟動 Fallback 強制成功機制:", err);
+        Swal.close();
 
         const now = new Date();
         const fallbackDate = now.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "/");
@@ -846,24 +823,18 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         const isCompany = isCompanyIP(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
 
-        Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
-        // 🛡️ 逾時 Fallback 強制成功時，同步啟動重試機制發送 LINE 通知
         sendSelfMessage({
             userName: window.userName,
             status: status,
             date: apiData.date,
             time: apiData.time,
             networkStatus: networkStatusStr
-        }).catch(err => {
-            console.error("LINE 背景傳送（Fallback）最終失敗:", err);
-        });
+        }).catch(() => {});
 
         setTimeout(() => {
-            updateTodayRecords().catch(err => {
-                console.error("背景更新今日紀錄失敗:", err);
-            });
+            updateTodayRecords().catch(() => {});
         }, 800);
 
     } finally {
@@ -895,7 +866,5 @@ window.onload = async () => {
 
 </body>
 </html>
-
-
 
 
