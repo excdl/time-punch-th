@@ -615,7 +615,7 @@ async function updateTodayRecords() {
     }
 }
 
-async function sendSelfMessage(record, retries = 2) {
+async function sendSelfMessage(record) {
     if (!liff.isInClient()) return;
 
     let headerColor = "#3498db";
@@ -657,11 +657,7 @@ async function sendSelfMessage(record, retries = 2) {
             }
         }]);
     } catch (err) {
-        console.warn(`LINE 訊息傳送失敗（剩餘重試次數: ${retries}）:`, err);
-        if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return sendSelfMessage(record, retries - 1);
-        }
+        console.error("LINE 訊息傳送失敗:", err);
     }
 }
 
@@ -731,7 +727,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        const fetchPromise = fetch(API_ENDPOINT, {
+        const res = await fetch(API_ENDPOINT, {
             method: "POST",
             mode: "cors",
             redirect: "follow",
@@ -748,40 +744,28 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             })
         });
 
-        let res;
-        try {
-            res = await fetchPromise;
-            clearTimeout(timeoutId);
-        } catch (fetchErr) {
-            console.warn("fetch 逾時或中斷，啟動背景備援機制:", fetchErr);
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const json = await res.json();
+
+        // 攔截後端 LockService 忙碌狀態
+        if (json && json.message === "系統忙碌中") {
+            Swal.close();
+            Swal.fire({
+                icon: "error",
+                title: "系統忙碌中",
+                text: "目前同時打卡人數較多，請稍後再試一次",
+                customClass: { popup: "custom-swal-popup" }
+            });
+            return;
         }
 
         let apiData = {
             success: true,
-            date: getTodayString(),
-            time: new Date().toLocaleTimeString("zh-TW", { hour12: false })
+            date: json.date || getTodayString(),
+            time: json.time || new Date().toLocaleTimeString("zh-TW", { hour12: false })
         };
-
-        if (res && res.ok) {
-            try {
-                const json = await res.json();
-                
-                // 攔截後端 LockService 忙碌狀態
-                if (json && json.message === "系統忙碌中") {
-                    Swal.close();
-                    Swal.fire({
-                        icon: "error",
-                        title: "系統忙碌中",
-                        text: "目前同時打卡人數較多，請稍後再試一次",
-                        customClass: { popup: "custom-swal-popup" }
-                    });
-                    return;
-                }
-
-                if (json && json.date) apiData.date = json.date;
-                if (json && json.time) apiData.time = json.time;
-            } catch (e) {}
-        }
 
         const isCompany = isCompanyIP(ip);
         const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
@@ -789,7 +773,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         Swal.close();
         showClockSuccess(apiData, status, isMakeup, isCompany);
 
-        // 背景發送 LINE 訊息（帶自動重試）
         sendSelfMessage({
             userName: window.userName,
             status: status,
@@ -797,7 +780,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             time: apiData.time,
             networkStatus: networkStatusStr
         }).catch(err => {
-            console.error("LINE 背景傳送最終失敗:", err);
+            console.error("LINE 背景傳送失敗:", err);
         });
 
         setTimeout(() => {
@@ -807,36 +790,14 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         }, 500);
 
     } catch (err) {
-        console.warn("打卡異常，啟動 Fallback 強制成功機制:", err);
+        console.error("打卡異常:", err);
         Swal.close();
-
-        const now = new Date();
-        const fallbackDate = now.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "/");
-        const fallbackTime = now.toLocaleTimeString("zh-TW", { hour12: false });
-
-        let apiData = {
-            success: true,
-            date: fallbackDate,
-            time: fallbackTime
-        };
-
-        const isCompany = isCompanyIP(ip);
-        const networkStatusStr = isCompany ? "公司網路" : "非公司網路";
-
-        showClockSuccess(apiData, status, isMakeup, isCompany);
-
-        sendSelfMessage({
-            userName: window.userName,
-            status: status,
-            date: apiData.date,
-            time: apiData.time,
-            networkStatus: networkStatusStr
-        }).catch(() => {});
-
-        setTimeout(() => {
-            updateTodayRecords().catch(() => {});
-        }, 800);
-
+        Swal.fire({
+            icon: "error",
+            title: "連線異常",
+            text: "打卡送出失敗，請檢查網路狀態後重試",
+            customClass: { popup: "custom-swal-popup" }
+        });
     } finally {
         window.clockSubmitting = false;
         btnStart.disabled = false;
@@ -866,6 +827,10 @@ window.onload = async () => {
 
 </body>
 </html>
+
+
+
+
 
 
 
